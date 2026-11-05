@@ -16,10 +16,8 @@ import Pets, { RewardCrab, SphinxShowcase } from './pets/Pets'
 import RemoteAvatars from './remote/RemoteAvatars'
 import RemotePlayers from './remote/RemotePlayers'
 import Particles from './fx/Particles'
-import LiftInput from './LiftInput'
-import Boulders from './push/Boulders'
+import EatInput from './EatInput'
 import ChatBubbles from './ChatBubbles'
-import DumbbellShop from './world/DumbbellShop'
 import EggDisplays from './world/EggDisplays'
 import Leaderboards from './world/Leaderboards'
 import Portal from './world/Portal'
@@ -39,8 +37,8 @@ const DevPerf = import.meta.env.DEV
   : null
 const showDevPerf = import.meta.env.DEV && new URLSearchParams(window.location.search).has('perf')
 
-// The track up the mountain is its own chunk, fetched once the lobby is on screen so it
-// never delays time-to-playable.
+// The tape track down the valley is its own chunk, fetched once the lobby is on screen so
+// it never delays time-to-playable.
 const Push = lazy(() => import('./push/Push'))
 
 /** The longest the loading screen waits for your avatar before the game opens anyway. */
@@ -50,7 +48,7 @@ const AVATAR_WAIT_MS = 10000
  * The scene's start-up, in a component of its own so each step re-renders only this,
  * not the whole scene (seconds of work on a slow phone): every shader compiled
  * (ShaderWarmup - last in the scene, so everything's in it), then the first real frame
- * drawn (`onSceneIn`), then the track up the mountain, fetched only now so it never
+ * drawn (`onSceneIn`), then the tape track down the valley, fetched only now so it never
  * delays time-to-playable.
  */
 function StartUp({ onSceneIn }) {
@@ -233,7 +231,6 @@ export function GameScene({ onReady }) {
         <Lighting />
         <World />
         <WorldLabels />
-        <DumbbellShop />
         <EggDisplays />
         <Portal />
         <Leaderboards />
@@ -247,13 +244,12 @@ export function GameScene({ onReady }) {
         <Player onAvatarReady={handleAvatarReady} />
         <ChatBubbles />
         <PauseForAds />
-        <Boulders />
         <Auras />
         <BlobShadows />
         <GainFX />
 
         <FollowCamera />
-        <LiftInput />
+        <EatInput />
         <StartUp onSceneIn={handleSceneIn} />
         <PerfProbe />
         {showDevPerf && DevPerf && (

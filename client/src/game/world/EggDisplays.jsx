@@ -152,8 +152,8 @@ const _s = new Vector3()
 const _axis = new Vector3(0, 1, 0)
 
 /**
- * The eggs on their stands: patterned glossy shells that slowly turn and bob, each
- * with a soft halo in its own colour. All five are one draw call (with one shader of
+ * The eggs on their stands: patterned glossy shells that rock to and fro facing the
+ * plaza (their stand's yaw) and bob, each with a soft halo in its own colour. All five are one draw call (with one shader of
  * their own), the halos another.
  */
 export function EggDisplays() {
@@ -212,7 +212,8 @@ export function EggDisplays() {
       // The Demon Egg is crowned with horns and wings, so it turns on the spot.
       const bob = stand.big ? 0 : Math.sin(t * 1.5 + i * 1.3) * 0.12
       _p.set(stand.x, eggHeight(stand) + bob, stand.z)
-      _q.setFromAxisAngle(_axis, t * 0.5 + i)
+      // Rocking gently to and fro, facing the plaza.
+      _q.setFromAxisAngle(_axis, stand.yaw + Math.sin(t * 0.7 + i * 1.7) * 0.7)
       mesh.setMatrixAt(i, _m.compose(_p, _q, _s.set(scale, scale * 1.28, scale)))
       glows.setMatrixAt(i, _m.compose(_p, _q.identity(), _s.setScalar(scale * 3.6 * glowSize)))
     })

@@ -39,7 +39,7 @@ function KeyButton({ letter, label, gradient, onClick, active, disabled }) {
 export function EggPanel() {
   const eggId = useGame((s) => s.zone.egg)
   const hidden = useGame((s) => Boolean(s.panel || s.pushing || s.hatch))
-  const wins = useGame((s) => s.profile.wins)
+  const coins = useGame((s) => s.profile.coins)
   const autoHatch = useGame((s) => s.autoHatch)
   const setAutoHatch = useGame((s) => s.setAutoHatch)
   const egg = EGGS[eggId]
@@ -62,7 +62,7 @@ export function EggPanel() {
   }, [egg, eggId, hidden, autoHatch, setAutoHatch])
 
   if (!egg || hidden) return null
-  const cost = egg.cost.wins
+  const cost = egg.cost.coins
 
   return (
     <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ top: '23%' }}>
@@ -78,8 +78,8 @@ export function EggPanel() {
         <div className="flex items-center justify-between" style={{ fontSize: u(48), padding: `0 ${u(6)}` }}>
           <StrokeText stroke={u(9)}>{eggId === 'demon' ? 'Demon Egg' : egg.name}</StrokeText>
           <span className="flex items-center" style={{ gap: u(4) }}>
-            <Icon name="trophy" size={u(48)} />
-            <StrokeText stroke={u(9)} gradient={wins >= cost ? GRADIENTS.gold : 'linear-gradient(180deg,#ffb0a8,#ff4a3b)'}>
+            <Icon name="coin" size={u(48)} />
+            <StrokeText stroke={u(9)} gradient={coins >= cost ? GRADIENTS.gold : 'linear-gradient(180deg,#ffb0a8,#ff4a3b)'}>
               {formatNumber(cost)}
             </StrokeText>
           </span>

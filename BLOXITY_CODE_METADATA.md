@@ -1,25 +1,25 @@
 ---
-gameId: 1-muscle-to-push-boulder
+gameId: get-fat-to-break-tape
 clientDir: client
 buildCommand: npm run build
 distDir: client/dist
-# Crushed by your boulder is a death: Boxity's death screen, and a Respawn button
-# (back to the lobby) once its countdown is over.
-canDie: true
+# Nobody dies: running out of Fat just ends your roll down the track, and you're back
+# in the lobby.
+canDie: false
 # Leaderboards, declared by the client and scored by the server.
 hasScore: true
 leaderboards:
-  - { id: muscle, label: Strongest, mode: best, format: compact, reset: none }
+  - { id: fat, label: Fattest, mode: best, format: compact, reset: none }
   - { id: rebirths, label: Most Rebirths, mode: best, format: number, reset: weekly }
-  - { id: wins, label: Most Wins, mode: sum, format: compact, reset: weekly }
+  - { id: coins, label: Most Coins, mode: sum, format: compact, reset: weekly }
 roomSize: 8
 notApplicable:
   rewardedAds: The game has no reward a player could earn by watching an ad.
-  gems: Nothing is sold for Gems - every price is in Wins, earned in the game.
+  gems: Nothing is sold for Gems - every price is in Coins, earned in the game.
   playWithFriends: Hosted on Boxity and joining through its matchmaker, so Boxity's own private rooms seat invited friends together; the game makes no private rooms of its own for CrazyGames' instant join.
 ---
 
-# +1 Muscle to Push Boulder on Boxity
+# Belly Buster on Boxity
 
 Where each piece of the Boxity integration lives:
 
@@ -28,7 +28,6 @@ Where each piece of the Boxity integration lives:
 | Environment (prod / stage / local), every Boxity URL | `client/src/bloxity/env.js`, `server/src/boxity.js` |
 | Sign-in, avatar and proportions (the one `onUserChanged`) | `client/src/bloxity/BloxityProvider.jsx` |
 | Emotes, leaderboards, settings, ad breaks, player events, chat, Escape menu, screen ads | `client/src/bloxity/platform.js` |
-| Death screen | `client/src/bloxity/deathScreen.js`, `client/src/ui/hud/DeathCard.jsx` |
 | Hair, masks, neck / chest / waist / hand / shoe items, custom characters | `client/src/game/avatarItems.js`, `client/src/game/PlayerAvatar.jsx` |
 | Emote playback | `client/src/game/emotes.js`, `avatarRig.applyEmote` |
 | Chat bubbles | `client/src/game/speechBubbles.js`, `client/src/game/ChatBubbles.jsx` |

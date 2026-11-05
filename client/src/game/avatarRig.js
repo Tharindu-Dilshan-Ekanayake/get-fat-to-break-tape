@@ -15,7 +15,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 import { BACK_BONE, HAT_BONE, NECK_OFFSET_BONE, PART_SLOTS } from '../bloxity/avatarAssets'
 import { restInverses } from './avatarItems'
-import { BODY_OFFSETS, buildMusclePart, MUSCLE_SLOTS } from './muscleBody'
+import { BODY_OFFSETS, buildFatPart, FAT_SLOTS } from './fatBody'
 import { computePose, POSED_BONES } from './playerPose'
 
 /**
@@ -58,7 +58,7 @@ export function collectRig(root) {
     originalGeometries: {},
     /** bone name -> { bone, origPos, origQuat, origScale } */
     bones: {},
-    /** The merged body (see mergeBody), whose one morph is how built it is. */
+    /** The merged body (see mergeBody), whose one morph is how fat it is. */
     body: null,
     hatBone: null,
     backBone: null,
@@ -306,19 +306,19 @@ function plainGeometry(source) {
 const boneIndexer = (rig) => (name) => rig.skeleton.bones.findIndex((b) => b.name === name)
 
 /**
- * Builds the rig's rounded body parts (see muscleBody) ahead of mergeBody, one part a
+ * Builds the rig's rounded body parts (see fatBody) ahead of mergeBody, one part a
  * moment when the page is idle, so the first avatar's body never lands as one long
  * stall (the parts are shared, so later avatars find them built). Returns a cancel.
  */
-export function prepareMuscleParts(rig) {
-  const slots = rig.skeleton ? MUSCLE_SLOTS.filter((slot) => rig.originalGeometries[slot]) : []
+export function prepareFatParts(rig) {
+  const slots = rig.skeleton ? FAT_SLOTS.filter((slot) => rig.originalGeometries[slot]) : []
   const later = (fn) => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 0))
   let handle = null
   let done = false
   const next = () => {
     const slot = slots.shift()
     if (!slot || done) return
-    buildMusclePart(slot, rig.originalGeometries[slot], boneIndexer(rig))
+    buildFatPart(slot, rig.originalGeometries[slot], boneIndexer(rig))
     handle = later(next)
   }
   handle = later(next)
@@ -330,15 +330,15 @@ export function prepareMuscleParts(rig) {
 }
 
 /**
- * A part's piece of the merged body: the game's own rounded body part (muscleBody) for
+ * A part's piece of the merged body: the game's own rounded body part (fatBody) for
  * the torso, arms and legs - from the part's original box - and the part's own geometry
  * otherwise (the head), with nothing to morph.
  */
 function bodyPiece(rig, mesh) {
-  const slot = MUSCLE_SLOTS.find((s) => rig.partMeshes[s] === mesh)
+  const slot = FAT_SLOTS.find((s) => rig.partMeshes[s] === mesh)
   const source = slot ? rig.originalGeometries[slot] : null
   if (source) {
-    return buildMusclePart(slot, source, boneIndexer(rig)).clone()
+    return buildFatPart(slot, source, boneIndexer(rig)).clone()
   }
   const piece = plainGeometry(mesh.geometry)
   const count = piece.getAttribute('position').count
@@ -397,9 +397,9 @@ export function disposeMergedBody(body) {
  * preview renderer; they are applied here in the spirit of their names and are the
  * ones to sanity-check against the portal.
  *
- * `bulk` (see playerPose.bulkFor) then builds the body: skinny when you start, a
- * bodybuilder in the end - the rounded body's morph (see muscleBody), the shoulders and
- * hips moved out to match and a little height, the head left its own size.
+ * `bulk` (see playerPose.bulkFor) then shapes the body: skinny with nothing eaten, as
+ * round as a ball when stuffed - the rounded body's morph (see fatBody), the shoulders
+ * and hips moved out to match, the head left its own size.
  */
 export function applyProportions(rig, proportions, bulk = 0.5) {
   const skeleton = rig.skeleton

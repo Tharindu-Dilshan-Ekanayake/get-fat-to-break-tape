@@ -1,28 +1,25 @@
 import {
-  DUMBBELLS,
   EGGS,
-  GRAB_REACH,
   ITEMS,
-  LIFT_BURST,
-  MAX_LIFTS_PER_SECOND,
+  BITE_BURST,
+  MAX_BITES_PER_SECOND,
   MULTI_HATCH,
-  PUSH_SPEED_MAX,
   PUSH_START,
   PUSH_TIMEOUT_MS,
+  RUN_SPEED_MAX,
   SHOP,
   TRAIN_INTERVAL,
   TRAIN_ZONES,
-  WIN_PAD,
   WORLD_PORTALS,
 } from './balance.js'
 import {
   advanceTutorial,
-  applyLift,
+  applyBite,
   applyRebirth,
   applyTrain,
   awardBadge,
-  buyDumbbell,
-  buyMusclePack,
+  buyFood,
+  buyFatPack,
   buyShopItem,
   claimDaily,
   claimFreeReward,
@@ -31,71 +28,66 @@ import {
   deletePet,
   equipAura,
   equipBestPets,
-  equipDumbbell,
+  equipFood,
   equipPet,
   hatchEgg,
   isMaxLevel,
   isZoneUnlocked,
-  onWinPad,
   skipRebirth,
   trackOf,
   TRACKS,
   unequipPet,
   usePotion,
-  winsMultiplier,
+  coinsMultiplier,
   worldUnlocked,
 } from './logic.js'
 import {
-  DUMBBELL_PADS,
+  atFoodCounter,
   eggStandNear,
   FREE_REWARD,
   inPushZone,
-  inRect,
   MAX_MOVE_SPEED,
-  padRect,
   portalAt,
   TRACK_HALF_WIDTH,
   benchAt,
 } from './world.js'
 
-const DUMBBELL_INDEX = Object.fromEntries(DUMBBELLS.map((d, i) => [d.id, i]))
-
-/** How far outside a Train Zone still counts as "on" it (network jitter). */
 /** A seated player's reported position may wander this far off the bench (lag). */
 const SEAT_SLACK = 0.5
 /** Same for the push zone. */
 const PUSH_SLACK = 1.5
-/** Pads are bought by standing on them; allow for a little lag. */
-const PAD_SLACK = 2
-/** How far to either side of the track a pusher may report being. */
+/** Food is bought at the Food Shop's counter; allow for a little lag. */
+const COUNTER_SLACK = 2
+/** How far to either side of the track a runner may report being. */
 const TRACK_X = TRACK_HALF_WIDTH - 1
 
 /**
- * One player's authoritative session: validates intents, runs the training tick and
+ * One player's authoritative session: validates intents, runs the Food Court tick and
  * reports what happened through `emit`.
  *
  * Transport-agnostic on purpose. The Colyseus room wraps one of these per client; the
  * offline mode wraps one for the local player. Either way the rules that run are
  * byte-for-byte the same.
  *
+ * A roll down the tape track is called a `push` in the protocol (startPush, pushAt,
+ * endPush): every tape its Fat is enough for it smashes, and the first one too strong
+ * stops it. You keep your Fat.
+ *
  * Events emitted (type, payload):
  * - 'profile'    { profile, session }  full state, after anything structural
- * - 'train'      { source, zone, gain, muscle, level, leveledUp, maxed }  each Muscle
- *                  gain; `source` is 'lift' (a click) or 'zone' (training in Train
- *                  Zone `zone`). Walking earns nothing.
- * - 'push'       { stage, reach, power, start, x }  you've taken stage `stage`'s boulder:
- *                  your power (your Muscle now) and how far it pushes it before it runs out
- * - 'pushReward' { wins, stage, top }  Wins for the WINS pad just walked onto
- * - 'orb'        { index, wins }  Wins for the Wins orb just pushed into
- * - 'pushEnd'    { reason }  the climb is over, back in the plaza ('crushed', 'left',
- *                  'top', 'timeout')
- * - 'pack'       { amount }  a Muscle pack landed
+ * - 'train'      { source, zone, gain, fat, eaten, level, leveledUp, maxed }  each Fat
+ *                  gain; `source` is 'bite' (a click) or 'zone' (sat at Food Court
+ *                  `zone`). Walking earns nothing.
+ * - 'push'       { reach, power, start, x }  a roll's begun: its power (your Fat now) and
+ *                  where it's stopped (the first tape too strong for it, or the end)
+ * - 'tape'       { stage, coins, top }  a tape smashed, and what it paid
+ * - 'pushEnd'    { reason, coins, tapes }  the roll is over, back in the plaza
+ *                  ('blocked', 'left', 'top', 'timeout'), with what it earned
+ * - 'pack'       { amount }  a Fat pack landed
  * - 'hatch'      { eggId, pets: [{ uid, id }] }  pets to reveal
  * - 'badge'      { id, name }
  *
- * A climb up the mountain alternates between pushing a stage's boulder ('push') and
- * walking about a SAFEZONE without one ('free'). `onPush(push | null)` lets the host
- * show other players where someone is on it.
+ * `onPush(run | null)` lets the host show other players where someone is on the track.
  */
 export class PlayerSession {
   /**
@@ -114,22 +106,22 @@ export class PlayerSession {
     this.onPurchase = onPurchase
     this.onPush = onPush
 
-    /** Train Zone the client says it's in; verified against position every tick. */
+    /** Food Court the client says it's sat at; verified against position every tick. */
     this.zone = -1
     this.trainTimer = 0
     /**
-     * The climb in progress: { phase: 'push' | 'free', stage, startedAt, start, power,
-     * reach, meter, x, lastReportAt, lastMoveAt, paidPads }. Pushing, `stage` is the
-     * boulder's; free, it's the stage the SAFEZONE leads up to.
+     * The roll in progress: { phase: 'run', world, stage, startedAt, start, power, reach,
+     * meter, x, lastReportAt, tapes, coins }. `power` is the Fat it set off with, `reach`
+     * the metre it's stopped at; `tapes` the ones it's been paid for.
      */
     this.push = null
-    /** Wins earned climbing (WINS pads and orbs) not yet counted towards a leaderboard. */
-    this.winsEarned = 0
-    /** Server time until which a new push can't start (just after one ended). */
+    /** Coins earned rolling (tapes) not yet counted towards a leaderboard. */
+    this.coinsEarned = 0
+    /** Server time until which a new run can't start (just after one ended). */
     this.busyUntil = 0
-    /** Lifts banked (a token bucket refilling at MAX_LIFTS_PER_SECOND), and when last refilled. */
-    this.liftTokens = LIFT_BURST
-    this.liftRefilledAt = now
+    /** Bites banked (a token bucket refilling at MAX_BITES_PER_SECOND), and when last refilled. */
+    this.biteTokens = BITE_BURST
+    this.biteRefilledAt = now
     this.dirty = false
   }
 
@@ -169,7 +161,7 @@ export class PlayerSession {
       if (!isZoneUnlocked(this.profile, index)) return
       if (this.zone !== index) {
         this.zone = index
-        // The first lift lands a beat after stepping on, not instantly.
+        // The first bite comes a beat after sitting down, not instantly.
         this.trainTimer = TRAIN_INTERVAL * 0.5
       }
     },
@@ -178,15 +170,16 @@ export class PlayerSession {
       this.zone = -1
     },
 
-    /** One click: a lift with your dumbbell, worth more in a Train Zone. */
-    lift(_payload, now) {
-      this.liftTokens = Math.min(LIFT_BURST, this.liftTokens + ((now - this.liftRefilledAt) / 1000) * MAX_LIFTS_PER_SECOND)
-      this.liftRefilledAt = now
-      if (this.liftTokens < 1) return
-      this.liftTokens -= 1
-      const zone = !this.push && this.onClaimedZone() ? this.zone : -1
-      this.gain('lift', zone, applyLift(this.profile, zone, now))
-      this.tutorial('lift')
+    /** One click: a bite of your food, worth more sat at a Food Court. Not mid-run. */
+    eat(_payload, now) {
+      if (this.push) return
+      this.biteTokens = Math.min(BITE_BURST, this.biteTokens + ((now - this.biteRefilledAt) / 1000) * MAX_BITES_PER_SECOND)
+      this.biteRefilledAt = now
+      if (this.biteTokens < 1) return
+      this.biteTokens -= 1
+      const zone = this.onClaimedZone() ? this.zone : -1
+      this.gain('bite', zone, applyBite(this.profile, zone, now))
+      this.tutorial('eat')
     },
 
     setting({ key, value }) {
@@ -208,35 +201,24 @@ export class PlayerSession {
     },
 
     /**
-     * Takes a stage's boulder: the first from the PUSH ZONE in the plaza, each one after
-     * from the SAFEZONE below it, standing by it. Its power is all your Muscle now.
+     * Sets off down the tape track from the ROLL ZONE at its top, with all your Fat behind
+     * you. No Fat, no roll.
      */
     startPush(_payload, now) {
-      if (now < this.busyUntil) return
-      const climb = this.push
-      // A climb stays on the track of the world it started in.
-      const track = climb ? TRACKS[climb.world] : trackOf(this.profile)
-      let stage = 0
-      let x = 0
-      if (climb) {
-        if (climb.phase !== 'free') return
-        if (climb.meter < track.stageStart(climb.stage) + PUSH_START - GRAB_REACH - 1) return
-        stage = climb.stage
-        x = climb.x
-      } else {
-        const p = this.getPosition()
-        if (!inPushZone(p.x, p.z, PUSH_SLACK)) return
-        x = p.x
-        this.profile.stats.pushes += 1
-      }
-      const power = this.profile.muscle
-      const start = track.stageStart(stage) + PUSH_START
-      const reach = Math.round(track.stageReach(stage, power) * 100) / 100
-      x = Math.max(-TRACK_X, Math.min(TRACK_X, x))
+      if (now < this.busyUntil || this.push) return
+      const p = this.getPosition()
+      if (!inPushZone(p.x, p.z, PUSH_SLACK)) return
+      const power = this.profile.fat
+      if (!(power > 0)) return
+      const track = trackOf(this.profile)
+      const start = PUSH_START
+      const reach = Math.round(track.reachOf(power) * 100) / 100
+      const x = Math.max(-TRACK_X, Math.min(TRACK_X, p.x))
+      this.profile.stats.runs += 1
       this.push = {
-        phase: 'push',
+        phase: 'run',
         world: track.index,
-        stage,
+        stage: 0,
         startedAt: now,
         start,
         power,
@@ -244,120 +226,73 @@ export class PlayerSession {
         meter: start,
         x,
         lastReportAt: now,
-        lastMoveAt: now,
-        paidPads: climb?.paidPads ?? [],
-        orbs: climb?.orbs ?? [],
+        tapes: [],
+        coins: 0,
       }
       this.zone = -1
-      this.emit('push', { stage, reach, power, start, x })
+      this.emit('push', { reach, power, start, x })
       this.onPush?.(this.push)
       this.dirty = true
-      this.tutorial('push')
-      this.badge('firstPush')
+      this.badge('firstRun')
     },
 
     /**
-     * Where the climber has got to. Pushing, trusted only as far as they could really
-     * have got: no further than their power pushes the boulder, nor than pushing flat
-     * out since they took it could take them; over the top of the slope they're free in
-     * the SAFEZONE above. Free, only within that SAFEZONE and at walking pace. A WINS pad
-     * stood on cashes the climb in: it pays for everything climbed, and the climb's over.
+     * Where the roller has got to - trusted only as far as they could really have got: no
+     * further than the first tape too strong for them, nor than rolling flat out since
+     * they set off could take them, and never backwards. Every tape at or before that,
+     * that their Fat is enough for, is smashed, and pays once.
      */
     pushAt({ meter, x }, now) {
-      const climb = this.push
-      if (!climb) return
+      const run = this.push
+      if (!run) return
       const m = Number(meter)
       if (!Number.isFinite(m)) return
-      const track = TRACKS[climb.world]
-      climb.x = Math.max(-TRACK_X, Math.min(TRACK_X, Number(x) || 0))
-      climb.lastReportAt = now
-      if (climb.phase === 'push') {
-        const allowed = Math.min(climb.reach, climb.start + ((now - climb.startedAt) / 1000) * PUSH_SPEED_MAX + 4)
-        climb.meter = Math.max(climb.start - 2, Math.min(m, allowed))
-        if (climb.meter >= track.stageTop(climb.stage) - 0.01 && climb.stage < track.stages.length - 1) {
-          climb.phase = 'free'
-          climb.stage += 1
-          climb.lastMoveAt = now
-        }
-      } else {
-        const step = Math.abs(m - climb.meter)
-        const dt = Math.max(0.05, (now - climb.lastMoveAt) / 1000)
-        if (step <= MAX_MOVE_SPEED * dt + 2) {
-          climb.meter = Math.max(track.safeStart(climb.stage), Math.min(m, track.stageStart(climb.stage) + PUSH_START + 0.5))
-          climb.lastMoveAt = now
-        }
-      }
-      this.onPush?.(climb)
+      const track = TRACKS[run.world]
+      run.x = Math.max(-TRACK_X, Math.min(TRACK_X, Number(x) || 0))
+      run.lastReportAt = now
+      const allowed = Math.min(run.reach, run.start + ((now - run.startedAt) / 1000) * RUN_SPEED_MAX + 4)
+      run.meter = Math.max(run.meter, Math.min(m, allowed))
+      run.stage = track.stageAt(run.meter)
+      this.onPush?.(run)
       const stats = this.profile.stats
-      stats.bestMeter = Math.max(stats.bestMeter, Math.round(climb.meter * 10) / 10)
+      stats.bestMeter = Math.max(stats.bestMeter, Math.round(run.meter * 10) / 10)
 
-      for (const pad of track.winPads) {
-        if (climb.paidPads.includes(pad.stage) || !onWinPad(pad, climb.meter, climb.x, WIN_PAD.slack)) continue
-        climb.paidPads.push(pad.stage)
-        const wins = Math.max(1, Math.round(pad.wins * winsMultiplier(this.profile, now)))
-        const top = pad.stage === track.stages.length - 1
-        this.profile.wins += wins
-        this.winsEarned += wins
+      for (const tape of track.tapes) {
+        if (run.tapes.includes(tape.stage) || run.meter < tape.meter - 0.01 || run.power < tape.need - 1e-6) continue
+        run.tapes.push(tape.stage)
+        const coins = Math.max(1, Math.round(tape.coins * coinsMultiplier(this.profile, now)))
+        const top = tape.stage === track.stages.length - 1
+        this.profile.coins += coins
+        this.coinsEarned += coins
+        run.coins += coins
+        stats.tapes += 1
         this.dirty = true
-        this.emit('pushReward', { wins, stage: pad.stage, top })
-        this.tutorial('cashIn')
-        if (pad.stage === 0 && climb.world === 0) this.badge('frozenPeak')
+        this.emit('tape', { stage: tape.stage, coins, top })
+        this.tutorial('tape')
+        this.badge('firstTape')
         if (top) {
           stats.tops += 1
           this.badge('top')
         }
-        this.finishPush(now, top ? 'top' : 'win')
-        return
       }
     },
 
-    /**
-     * A Wins orb the boulder's rolled into: paid at once, once a climb - if the climb's
-     * really by it: pushing up its stage, just short of it, on its side of the track.
-     */
-    collectOrb({ index }, now) {
-      const climb = this.push
-      if (!climb || climb.phase !== 'push') return
-      const orb = TRACKS[climb.world].orbs[Number(index)]
-      if (!orb || orb.stage !== climb.stage || climb.orbs.includes(orb.index)) return
-      if (orb.meter < climb.meter - 3 || orb.meter > climb.meter + 7 || climb.x * orb.side < -0.25) return
-      climb.orbs.push(orb.index)
-      const wins = Math.max(1, Math.round(orb.wins * winsMultiplier(this.profile, now)))
-      this.profile.wins += wins
-      this.winsEarned += wins
-      this.dirty = true
-      this.emit('orb', { index: orb.index, wins })
-    },
-
-    /**
-     * The push is over. Backing off the foot of a stage above the first, you're free in
-     * the SAFEZONE below it; otherwise - crushed on any stage included - the climb's
-     * over and you're back in the plaza.
-     */
+    /** The roll is over: stopped by a tape too strong ('blocked'), the end reached ('top'), or given up ('left'). */
     endPush({ reason }, now) {
-      const climb = this.push
-      if (!climb) return
-      if (climb.phase === 'push' && climb.stage > 0 && reason === 'release') {
-        climb.phase = 'free'
-        climb.meter = TRACKS[climb.world].stageStart(climb.stage) + PUSH_START
-        climb.lastMoveAt = now
-        climb.lastReportAt = now
-        this.onPush?.(climb)
-        return
-      }
-      this.finishPush(now, ['crushed', 'left', 'top'].includes(reason) ? reason : 'left')
+      if (!this.push) return
+      this.finishPush(now, ['blocked', 'left', 'top'].includes(reason) ? reason : 'left')
     },
 
-    buyDumbbell({ id }) {
-      if (!this.nearPadFor(id)) return
-      const result = buyDumbbell(this.profile, id)
+    buyFood({ id }) {
+      if (!this.atCounter()) return
+      const result = buyFood(this.profile, id)
       if (!result.ok) return
       this.dirty = true
-      if (result.bought) this.tutorial('buyDumbbell')
+      if (result.bought) this.tutorial('buyFood')
     },
 
-    equipDumbbell({ id }) {
-      const result = equipDumbbell(this.profile, id)
+    equipFood({ id }) {
+      const result = equipFood(this.profile, id)
       if (result.ok) this.dirty = true
     },
 
@@ -366,7 +301,7 @@ export class PlayerSession {
     },
 
     buyPack({ index }) {
-      const result = buyMusclePack(this.profile, Number(index))
+      const result = buyFatPack(this.profile, Number(index))
       if (!result.ok) return
       this.dirty = true
       this.emit('pack', { amount: result.amount })
@@ -423,8 +358,8 @@ export class PlayerSession {
     },
 
     /**
-     * Stepping through a world portal: to its world (the first time, with its Wins), or,
-     * from that world, back to World 1. Not mid-climb.
+     * Stepping through a world portal: to its world (the first time, with its Coins), or,
+     * from that world, back to World 1. Not mid-run.
      */
     portal() {
       if (this.push) return
@@ -446,12 +381,12 @@ export class PlayerSession {
       this.dirty = true
     },
 
-    /** Buys a SHOP item with Wins. */
+    /** Buys a SHOP item with Coins. */
     purchase({ productId }) {
       const item = SHOP[productId]
       if (!item) return
       // Checked before the host takes stock, so a short wallet never uses up a Sphinx.
-      if (this.profile.wins < item.price) return
+      if (this.profile.coins < item.price) return
       if (item.kind === 'pass' && this.profile.passes[productId]) return
       if (this.onPurchase && !this.onPurchase(productId)) return
       const result = buyShopItem(this.profile, productId)
@@ -482,34 +417,33 @@ export class PlayerSession {
     if (this.profile.rebirths === 1) this.badge('firstRebirth')
   }
 
-  /** Ends the climb in progress, if any, and tells the client (it may already know). */
+  /** Ends the roll in progress, if any, and tells the client (it may already know). You keep your Fat. */
   finishPush(now, reason) {
-    if (!this.push) return
+    const run = this.push
+    if (!run) return
     this.push = null
     this.busyUntil = now + 600
     this.dirty = true
     this.onPush?.(null)
-    this.emit('pushEnd', { reason })
+    this.emit('pushEnd', { reason, coins: run.coins, tapes: run.tapes.length })
   }
 
   // --- Simulation ------------------------------------------------------------------
 
-  /** Whether the player stands on (or right by) the pad for dumbbell `id`. */
-  nearPadFor(id) {
-    const pad = DUMBBELL_PADS[DUMBBELL_INDEX[id]]
-    if (!pad) return false
+  /** Whether the player is at (or right by) the Food Shop's counter. */
+  atCounter() {
     const p = this.getPosition()
-    return inRect(padRect(pad), p.x, p.z, PAD_SLACK)
+    return atFoodCounter(p.x, p.z, COUNTER_SLACK)
   }
 
-  /** Whether the player is really sitting on the bench of the Train Zone they claim. */
+  /** Whether the player is really sat at the table of the Food Court they claim. */
   onClaimedZone() {
     if (this.zone < 0) return false
     const p = this.getPosition()
     return benchAt(p.x, p.z, SEAT_SLACK) === this.zone
   }
 
-  /** Advances training and pushing. Call at a steady rate (the room's simulation interval). */
+  /** Advances Food Court eating and runs. Call at a steady rate (the room's simulation interval). */
   tick(dt, now) {
     if (this.push) {
       if (now - this.push.lastReportAt > PUSH_TIMEOUT_MS) this.finishPush(now, 'timeout')
@@ -526,14 +460,15 @@ export class PlayerSession {
     if (this.dirty) this.sendProfile()
   }
 
-  /** Tells the client about a Muscle gain from `source` ('lift' or 'zone'). */
+  /** Tells the client about a Fat gain from `source` ('bite' or 'zone'). */
   gain(source, zone, result) {
     if (result.gain > 0) {
       this.emit('train', {
         source,
         zone,
         gain: result.gain,
-        muscle: this.profile.muscle,
+        fat: this.profile.fat,
+        eaten: this.profile.eaten,
         level: this.profile.level,
         leveledUp: result.leveledUp,
         maxed: result.maxed,
@@ -552,6 +487,6 @@ export class PlayerSession {
       return
     }
     this.gain('zone', this.zone, result)
-    this.tutorial('train')
+    this.tutorial('eat')
   }
 }

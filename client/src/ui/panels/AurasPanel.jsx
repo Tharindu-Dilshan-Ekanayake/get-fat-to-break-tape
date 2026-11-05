@@ -10,13 +10,13 @@ import { ChunkyButton, Price } from '../hud/parts'
 import { GRADIENTS, u } from '../hud/style'
 import Panel from './Panel'
 
-/** One aura's row, as in the reference: its icon, name and Wins multiplier, and buy or wear. */
+/** One aura's row, as in the reference: its icon, name and Coins multiplier, and buy or wear. */
 function AuraRow({ id }) {
   const aura = AURAS[id]
   const product = SHOP[aura.product]
   const owned = useGame((s) => Boolean(s.profile.passes[aura.product]))
   const worn = useGame((s) => s.profile.equippedAura === id)
-  const afford = useGame((s) => s.profile.wins >= product.price)
+  const afford = useGame((s) => s.profile.coins >= product.price)
 
   let button
   if (worn) {
@@ -56,9 +56,9 @@ function AuraRow({ id }) {
           <StrokeText stroke={u(10)}>{aura.name}</StrokeText>
         </span>
         <span className="flex items-center" style={{ fontSize: u(46), gap: u(6) }}>
-          <Icon name="trophy" size={u(52)} />
+          <Icon name="coin" size={u(52)} />
           <StrokeText stroke={u(9)} gradient={GRADIENTS.gold}>
-            {formatMultiplier(aura.wins)}
+            {formatMultiplier(aura.coins)}
           </StrokeText>
         </span>
       </div>
@@ -67,10 +67,10 @@ function AuraRow({ id }) {
   )
 }
 
-/** The aura stand's panel: Lightning, Galaxy and Water, each multiplying your Wins. */
+/** The aura stand's panel: every aura, each multiplying the Coins your rolls earn. */
 export function AurasPanel() {
   return (
-    <Panel title="Auras" icon="muscle" width={940}>
+    <Panel title="Auras" icon="aura:rainbow" width={940}>
       <div className="flex flex-col" style={{ gap: u(14) }}>
         {Object.keys(AURAS).map((id) => (
           <AuraRow key={id} id={id} />

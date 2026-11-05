@@ -1,4 +1,4 @@
-import { SHOP } from '@shared/balance'
+import { SHOP, TRAIN_ZONES } from '@shared/balance'
 
 import { buy } from '../../net/shop'
 import { useGame } from '../../store/game'
@@ -10,27 +10,27 @@ import { GRADIENTS, u } from '../hud/style'
 import Panel from './Panel'
 
 const SECTIONS = [
-  { title: 'Passes', items: ['muscleX2', 'winsX2', 'muscleX3', 'winsX3', 'vip'] },
-  { title: 'Potions', items: ['potionsMuscle', 'potionsWins'] },
+  { title: 'Passes', items: ['fatX2', 'coinsX2', 'fatX3', 'coinsX3', 'vip'] },
+  { title: 'Potions', items: ['potionsFat', 'potionsCoins'] },
   { title: 'Eggs', items: ['eggsSunset', 'eggsUnicorn', 'eggsDemon'] },
-  { title: 'Train Zones', items: ['zoneVeryOp', 'zoneBest'] },
+  { title: 'Food Courts', items: ['zoneVeryOp', 'zoneBest'] },
   { title: 'Auras', items: ['auraLightning', 'auraGalaxy', 'auraWater', 'auraFire', 'auraRainbow'] },
   { title: 'Specials', items: ['sphinx'] },
 ]
 
 const ICONS = {
-  muscleX2: 'muscle',
-  winsX2: 'trophy',
-  muscleX3: 'muscle',
-  winsX3: 'trophy',
+  fatX2: 'fat',
+  coinsX2: 'coin',
+  fatX3: 'fat',
+  coinsX3: 'coin',
   vip: 'starGold',
-  potionsMuscle: 'potionMuscle',
-  potionsWins: 'potionWins',
+  potionsFat: 'potionFat',
+  potionsCoins: 'potionCoins',
   eggsSunset: 'egg:sunset',
   eggsUnicorn: 'egg:unicorn',
   eggsDemon: 'egg:demon',
-  zoneVeryOp: 'dumbbell',
-  zoneBest: 'dumbbell',
+  zoneVeryOp: 'food',
+  zoneBest: 'food',
   auraLightning: 'aura:lightning',
   auraGalaxy: 'aura:galaxy',
   auraWater: 'aura:water',
@@ -38,31 +38,37 @@ const ICONS = {
   auraRainbow: 'aura:rainbow',
 }
 
+/** What a Food Court pass unlocks, from the table it's for: "Unlocks the 30X Frosty Parlor". */
+const zoneBlurb = (product) => {
+  const zone = TRAIN_ZONES.find((z) => z.product === product)
+  return zone ? `Unlocks the ${zone.mult}X ${zone.name}` : ''
+}
+
 const BLURBS = {
-  muscleX2: 'Double every Muscle gain, forever',
-  winsX2: 'Double the Wins from every push, forever',
-  muscleX3: 'Triple every Muscle gain, forever',
-  winsX3: 'Triple the Wins from every push, forever',
-  vip: 'x1.5 Muscle and x1.5 Wins, forever',
-  potionsMuscle: 'Three x2 Muscle potions, cheaper',
-  potionsWins: 'Three x2 Wins potions, cheaper',
+  fatX2: 'Double the Fat from every bite, forever',
+  coinsX2: 'Double the Coins from every roll, forever',
+  fatX3: 'Triple the Fat from every bite, forever',
+  coinsX3: 'Triple the Coins from every roll, forever',
+  vip: 'x1.5 Fat and x1.5 Coins, forever',
+  potionsFat: 'Three x2 Fat potions, cheaper',
+  potionsCoins: 'Three x2 Coins potions, cheaper',
   eggsSunset: 'Three Sunset Eggs to hatch',
   eggsUnicorn: 'Three Unicorn Eggs to hatch',
   eggsDemon: 'Three Demon Eggs to hatch',
-  zoneVeryOp: 'Unlocks the 30X Frost Gym',
-  zoneBest: 'Unlocks the 60X Galaxy Gym',
-  auraLightning: 'x1.25 Wins, and it crackles',
-  auraGalaxy: 'x1.5 Wins, and it sparkles',
-  auraWater: 'x2 Wins, and it splashes',
-  auraFire: 'x3 Wins, and it blazes',
-  auraRainbow: 'x5 Wins, in every colour',
-  sphinx: 'Limited: x150 Muscle pet',
+  zoneVeryOp: zoneBlurb('zoneVeryOp'),
+  zoneBest: zoneBlurb('zoneBest'),
+  auraLightning: 'x1.25 Coins, and it crackles',
+  auraGalaxy: 'x1.5 Coins, and it sparkles',
+  auraWater: 'x2 Coins, and it splashes',
+  auraFire: 'x3 Coins, and it blazes',
+  auraRainbow: 'x5 Coins, in every colour',
+  sphinx: 'Limited: x150 Fat pet',
 }
 
-/** Everything Wins can buy besides dumbbells, eggs and Muscle packs, grouped, with what it does. */
+/** Everything Coins can buy besides foods, eggs and Fat packs, grouped, with what it does. */
 export function StorePanel() {
   const passes = useGame((s) => s.profile.passes)
-  const wins = useGame((s) => s.profile.wins)
+  const coins = useGame((s) => s.profile.coins)
   return (
     <Panel title="STORE" width={1080}>
       <div className="flex flex-col" style={{ gap: u(18) }}>
@@ -104,7 +110,7 @@ export function StorePanel() {
                           <StrokeText stroke={u(6)}>Owned</StrokeText>
                         </span>
                       ) : (
-                        <Price amount={product.price} size={32} afford={wins >= product.price} />
+                        <Price amount={product.price} size={32} afford={coins >= product.price} />
                       )}
                     </ChunkyButton>
                   </div>

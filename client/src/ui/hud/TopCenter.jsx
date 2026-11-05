@@ -10,19 +10,23 @@ const BANNER_GRADIENT = 'linear-gradient(180deg, #fff6a8 0%, #ffd52a 45%, #ff9c0
 const touch = typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0)
 
 /**
- * What the guide tells a new player right now - its step, with the Muscle to train up
- * to where it asks for some, and how to take the boulder when you're at it - until the
- * guide's done; after that, nothing. (Max level has its own call to rebirth, up top:
+ * What the guide tells a new player right now - its step, with the Fat to eat up to
+ * where it asks for some, and how to start rolling when you're on the ROLL ZONE - until
+ * the guide's done; after that, nothing. (Max level has its own call to rebirth, up top:
  * RebirthNotice.)
  */
 function useHint() {
   const step = useGame((s) => s.profile.tutorialStep)
-  const muscle = useGame((s) => Math.floor(s.profile.muscle))
-  const atBoulder = useGame((s) => s.zone.pushZone)
+  const fat = useGame((s) => Math.floor(s.profile.fat))
+  const atRollZone = useGame((s) => s.zone.pushZone)
+  const hungry = useGame((s) => !(s.profile.fat > 0))
   const current = TUTORIAL[step]
   if (!current) return null
-  if (atBoulder) return { key: 'grab', text: touch ? 'Hold PUSH to push the boulder!' : 'Hold E to push the boulder!' }
-  if (current.muscle && muscle < current.muscle) return { key: current.text, text: `${current.text} ${formatNumber(muscle)}/${current.muscle}` }
+  if (atRollZone) {
+    if (hungry) return { key: 'hungry', text: 'Eat some food first - Fat is what you roll on!' }
+    return { key: 'roll', text: touch ? 'Hold the ROLL! button to roll down the hill!' : 'Hold E to roll down the hill!' }
+  }
+  if (current.fat && fat < current.fat) return { key: current.text, text: `${current.text} ${formatNumber(fat)}/${current.fat}` }
   return { key: current.text, text: current.text }
 }
 
@@ -30,7 +34,7 @@ function useHint() {
  * The big hint under the level bar, as in the reference. A tutorial step stays up until
  * it's done; any other hint shows for about three seconds and fades (pp-hint), so it's
  * never in the way of playing. Keyed on the hint, so a new one starts it again. Paused
- * while the HUD is out of sight (pushing, a panel open), so a hint is never used up
+ * while the HUD is out of sight (rolling, a panel open), so a hint is never used up
  * unseen.
  */
 export function TopCenter() {

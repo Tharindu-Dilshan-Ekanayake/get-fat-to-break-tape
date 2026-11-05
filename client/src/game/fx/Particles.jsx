@@ -30,6 +30,10 @@ const pieces = Array.from({ length: POOL }, () => ({
 const PALETTES = {
   confetti: ['#ff3b5c', '#ffd21f', '#4ef05a', '#2fc6ff', '#b15cff', '#ffffff'].map((c) => new Color(c)),
   gold: ['#ffe45c', '#ffc21f', '#ff9a12', '#ffffff'].map((c) => new Color(c)),
+  /** Bits of food off a bite: crust, chocolate, cream. */
+  crumbs: ['#d99a4e', '#8a5426', '#ffd27a', '#f6efe0'].map((c) => new Color(c)),
+  /** Shreds of a smashed tape: red and white. */
+  ribbon: ['#ff3045', '#ffffff', '#ff6a7a', '#ffffff'].map((c) => new Color(c)),
   power: ['#ffd84a', '#ffa21c', '#ffffff'].map((c) => new Color(c)),
 }
 

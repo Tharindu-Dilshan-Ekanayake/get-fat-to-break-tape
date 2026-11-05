@@ -25,14 +25,17 @@ export const PRESETS = {
     cloudCount: 8,
     /** Max side of any generated texture. */
     maxTexture: 512,
-    /** Other players' shadows and pets show this far away (their avatars, however far). */
+    /** Other players' shadows and pets show this far away. */
     remoteDrawDistance: 150,
+    /** Other players' avatars are drawn (and posed) this far away; past it, hidden - the
+     * biggest saving in a full room on a weak phone. */
+    remoteAvatarDistance: 45,
     remoteNameDistance: 40,
     /** World labels fade out past this. */
     labelDistance: 70,
     /** How much of the canyon's scenery to spawn (0-1). */
     decorDensity: 0.45,
-    /** Dumbbell, egg and aura halo size multiplier. */
+    /** Food, egg and aura halo size multiplier. */
     glow: 0.8,
   },
   MEDIUM: {
@@ -48,6 +51,7 @@ export const PRESETS = {
     cloudCount: 14,
     maxTexture: 1024,
     remoteDrawDistance: 150,
+    remoteAvatarDistance: 90,
     remoteNameDistance: 55,
     labelDistance: 110,
     decorDensity: 0.75,
@@ -66,6 +70,7 @@ export const PRESETS = {
     cloudCount: 18,
     maxTexture: 1024,
     remoteDrawDistance: 150,
+    remoteAvatarDistance: 160,
     remoteNameDistance: 70,
     labelDistance: 150,
     decorDensity: 1,

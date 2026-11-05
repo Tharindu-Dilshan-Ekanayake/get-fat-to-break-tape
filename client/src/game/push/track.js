@@ -1,4 +1,3 @@
-import { WIN_PAD } from '@shared/balance'
 import { mulberry32 } from '@shared/rng'
 import { TRACK_HALF_WIDTH } from '@shared/world'
 
@@ -10,16 +9,17 @@ import { RIM_X, slopeBoxPlacement, surfaceY, zAt } from './path'
 import { SAFE_THEME, STAGE_THEMES } from './themes'
 
 /**
- * The track up the mountain, generated in 40 m chunks on demand. Each chunk is a
+ * The tape track down the valley, generated in 40 m chunks on demand. Each chunk is a
  * BlockSet (one draw call); content is seeded by chunk index, so every client builds an
- * identical mountain and a chunk can be thrown away and rebuilt at will.
+ * identical valley and a chunk can be thrown away and rebuilt at will.
  *
- * Cross-section, as in the reference: a narrow tiled floor between tall stepped cliffs
- * of big square studs - a low step, a higher one and the rim - with a ledge running out
- * beyond the rim and scenery on the steps and the ledge. Along it, each stage's slope
- * with glowing chevrons up the middle, then a flat light-blue SAFEZONE with its WINS pad
- * on the right, then the next stage's slope. Everything structural lies along the track
- * (tipped on the slopes, level on the flats); trees and props stand upright.
+ * Cross-section: a narrow tiled floor between tall stepped cliffs of big square studs -
+ * a low step, a higher one and the rim - with a ledge running out beyond the rim and
+ * scenery on the steps and the ledge. Along it, each stage's slope with glowing chevrons
+ * down the middle, then the striped posts its tapes are strung between (the tapes are
+ * Tapes.jsx's), then a flat light-blue checkpoint, then the next stage's slope.
+ * Everything structural lies along the track (tipped on the slopes, level on the flats);
+ * trees and props stand upright.
  */
 
 export const CHUNK = 40
@@ -34,13 +34,13 @@ const RIM_H = STEPS[STEPS.length - 1][2]
 /** How far the ledge beyond the rim runs: short beside the lobby, wide after. */
 const LEDGE_NEAR = RIM_X + 10
 const LEDGE_FAR = 95
-/** The summit: a flat-topped stretch past the end of the last stage, then a wall. */
+/** The finish: a flat stretch past the last tape, then a wall. */
 export const SUMMIT_LENGTH = 34
 export const trackEnd = () => TRACK_LENGTH + SUMMIT_LENGTH
 /** No scenery on the first chunk, where the lobby's mountains stand beside the track. */
 const DECOR_START = 40
 
-/** Where the track bends: the top and the foot of every slope above the first, and THE TOP. */
+/** Where the track bends: the end and the start of every slope after the first, and the finish. */
 let bendsOf = null
 let bendsList = []
 function bends() {
@@ -57,7 +57,7 @@ function bends() {
  */
 const BACKFILL = 3.2
 const PROUD = 0.05
-/** Chevrons up the middle of a slope, this far apart; lanterns down its sides, and arches over it. */
+/** Chevrons down the middle of a slope, this far apart; lanterns down its sides, and arches over it. */
 const CHEVRON_EVERY = 6
 const LANTERN_EVERY = 12
 const ARCH_EVERY = 48
@@ -97,9 +97,9 @@ function cliffs(b, mid, len, look, proud) {
 }
 
 /**
- * Floor, stepped cliffs, the ledge beyond and, up a slope, chevrons up the middle, for
- * metres [a, c). `kind` is 'slope', 'safe' (a SAFEZONE: light blue, whatever the stage)
- * or 'summit'.
+ * Floor, stepped cliffs, the ledge beyond and, down a slope, chevrons down the middle,
+ * for metres [a, c). `kind` is 'slope', 'safe' (a checkpoint: light blue, whatever the
+ * stage) or 'summit' (the finish).
  */
 function walls(b, a, c, theme, wide, kind) {
   const len = c - a
@@ -122,7 +122,7 @@ function walls(b, a, c, theme, wide, kind) {
     }
   }
   // The ledge beyond the rim, as solid ground down to below the floor: the stage's own,
-  // even beside a SAFEZONE.
+  // even beside a checkpoint.
   const style = theme.wallStyle ?? STYLE.BLOCK
   const far = wide ? LEDGE_FAR : LEDGE_NEAR
   const width = far - RIM_X
@@ -148,7 +148,7 @@ function walls(b, a, c, theme, wide, kind) {
     b.addOn(0, py + 6.7, pz, HALF * 2 + 0.4, 0.8, 0.8, shade(theme.wall, 0.15), STYLE.BLOCK)
     b.addOn(0, py + 6.55, pz + 0.04, HALF * 2 - 0.8, 0.2, 0.86, theme.gate, STYLE.GLOW)
   }
-  // Soft glowing chevrons up the middle, pointing the way.
+  // Soft glowing chevrons down the middle, pointing the way.
   for (let m = Math.ceil(a / CHEVRON_EVERY) * CHEVRON_EVERY + 3; m < c - 1; m += CHEVRON_EVERY) {
     const [px, py, pz, rotX] = slopeBoxPlacement(m, 0, 0.04)
     for (const side of [-1, 1]) {
@@ -158,9 +158,30 @@ function walls(b, a, c, theme, wide, kind) {
 }
 
 /**
- * The SAFEZONE below stage `i` (its look is walls'): a glowing line across where it
- * starts, the WINS pad on the right (its label is Push's), and a line in the next
- * stage's colour where the next slope starts.
+ * The posts tape `stage`'s bands are strung between, at metre `m`: a striped pole either
+ * side of the floor in the stage's colour, capped, and a beam over the top.
+ */
+function tapeGate(b, m, theme) {
+  const [, py, pz] = slopeBoxPlacement(m, 0, 0)
+  for (const side of [-1, 1]) {
+    const x = side * (HALF - 0.12)
+    b.addOn(x, py - 0.3, pz, 0.38, 4.3, 0.38, theme.gate, STYLE.STRIPES)
+    b.addOn(x, py + 4, pz, 0.62, 0.35, 0.62, '#ffffff', STYLE.SMOOTH)
+    // A little pennant flying off the top of each post, out over the walls.
+    b.addOn(x, py + 4.35, pz, 0.08, 1.2, 0.08, '#2c313c', STYLE.SMOOTH)
+    b.add(x + side * 0.42, py + 5.25, pz, 0.8, 0.42, 0.06, theme.gate, STYLE.GLOW, 0, 0, side * -0.12)
+    // The knots the bands are tied on with.
+    for (let k = 0; k < 6; k += 1) b.add(x - side * 0.22, py + 0.55 + k * 0.46, pz, 0.14, 0.2, 0.14, '#ffffff', STYLE.SMOOTH)
+  }
+  b.addOn(0, py + 4.05, pz, HALF * 2 + 0.2, 0.32, 0.36, theme.gate, STYLE.GLOW)
+  // Bulbs along the beam.
+  for (let k = -3; k <= 3; k += 1) b.add(k * 1.0, py + 3.98, pz + 0.21, 0.2, 0.2, 0.08, '#fff6c4', STYLE.GLOW)
+}
+
+/**
+ * The checkpoint below stage `i` (its look is walls'): the posts of the tape it starts
+ * with, a glowing line across just past them, and a line in the next stage's colour
+ * where the next slope starts.
  */
 function safezone(b, i) {
   const a = safeStart(i)
@@ -168,21 +189,14 @@ function safezone(b, i) {
     const [x, y, z] = slopeBoxPlacement(m, 0, 0.05)
     b.add(x, y, z, HALF * 2 - 0.2, 0.1, 0.5, color, STYLE.GLOW)
   }
-  line(a + 0.4, '#e8f7ff')
+  tapeGate(b, a, STAGE_THEMES[STAGES[i - 1].id])
+  line(a + 0.8, '#e8f7ff')
   line(stageStart(i) - 0.4, STAGE_THEMES[STAGES[i].id].gate)
-  // The WINS pad: a white frame with the glowing gold pad raised in it.
-  const padMid = a + (WIN_PAD.from + WIN_PAD.to) / 2
-  const padLen = WIN_PAD.to - WIN_PAD.from
-  const padX = (WIN_PAD.minX + WIN_PAD.maxX) / 2
-  const padW = WIN_PAD.maxX - WIN_PAD.minX
-  const [fx, fy, fz] = slopeBoxPlacement(padMid, padX, 0.05)
-  b.add(fx, fy, fz, padW + 0.5, 0.1, padLen + 0.5, '#ffffff', STYLE.SMOOTH)
-  const [px, py, pz] = slopeBoxPlacement(padMid, padX, 0.1)
-  b.add(px, py, pz, padW, 0.12, padLen, '#ffc61a', STYLE.GLOW)
 }
 
-/** THE TOP: a golden platform, a giant trophy on a plinth, and the mountain's end wall. */
+/** The finish: the last tape's posts, a golden platform, a giant trophy on a plinth, and the valley's end wall. */
 function summit(b, theme) {
+  tapeGate(b, TRACK_LENGTH, theme)
   const m = TRACK_LENGTH + SUMMIT_LENGTH * 0.62
   const [px, py, pz, rotX] = slopeBoxPlacement(TRACK_LENGTH + SUMMIT_LENGTH / 2, 0, 0.06)
   b.add(px, py, pz, HALF * 2 - 0.4, 0.12, SUMMIT_LENGTH - 1, '#ffd21f', STYLE.PLATE, 0, rotX)
@@ -734,7 +748,7 @@ export function buildChunk(index, { density = 1 } = {}) {
     const c = cuts[i + 1]
     const mid = (a + c) / 2
     const kind = mid > TRACK_LENGTH ? 'summit' : isSlope(mid) ? 'slope' : 'safe'
-    // A SAFEZONE looks like the stage whose top it is; a slope like its own.
+    // A checkpoint looks like the stage whose tape it is past; a slope like its own.
     const stage = STAGES[kind === 'safe' ? stageAt(mid) - 1 : stageAt(mid)]
     walls(b, a, c, STAGE_THEMES[stage.id], wide, kind)
     DECOR[stage.id](b, a, c, rand, density)

@@ -49,17 +49,35 @@ const trophy = svg(
   vgrad('tr-g', GOLD),
 )
 
-const muscle = svg(
-  `<path d="M14 88V64c0-20 22-30 38-14l4 3V34c-3-6-3-14 3-19 7-6 19-6 25 2 5 7 5 16-1 21l1 34c0 10-8 17-18 17z" fill="url(#mu-g)" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M56 53c4 3 9 3 13-1" fill="none" stroke="${OUT}" stroke-width="5" stroke-linecap="round"/>
-  <path d="M62 24c3-3 8-4 12-2" fill="none" stroke="${OUT}" stroke-width="4" stroke-linecap="round"/>
-  <path d="M22 70c2-9 10-14 20-11" fill="none" stroke="#fff6c4" stroke-width="5" stroke-linecap="round" opacity=".85"/>
-  <path d="M64 15c4-2 9-1 12 1" fill="none" stroke="#fff6c4" stroke-width="4" stroke-linecap="round" opacity=".85"/>`,
-  vgrad('mu-g', [
-    [0, '#ffd84a'],
-    [0.6, '#ffa21c'],
-    [1, '#f07a00'],
-  ]),
+/**
+ * A chicken drumstick standing on its bone (tilt it with a transform): meat in `meat`,
+ * bone in `bone`, outlines `sw` wide. `detail` adds the crispy spots and the shine.
+ */
+function drumstick(meat, bone, sw, detail = true) {
+  const boneShape = '<circle cx="41" cy="86" r="8.5"/><circle cx="59" cy="86" r="8.5"/><rect x="43" y="60" width="14" height="26" rx="3"/>'
+  return `<g fill="${OUT}" stroke="${OUT}" stroke-width="${sw * 2}" stroke-linejoin="round">${boneShape}</g>
+    <g fill="${bone}">${boneShape}</g>
+    <path d="M36 70C26 60 21 48 23 35 25 19 37 9 50 9s25 10 27 26c2 13-3 25-13 35-4 3-24 3-28 0z" fill="${meat}" stroke="${OUT}" stroke-width="${sw}" stroke-linejoin="round"/>
+    ${
+      detail
+        ? `<g fill="#a64d14" opacity=".45"><ellipse cx="40" cy="31" rx="4.5" ry="3"/><ellipse cx="61" cy="45" rx="5" ry="3.5"/><circle cx="47" cy="56" r="3"/><circle cx="64" cy="26" r="2.5"/></g>
+    <path d="M31 40c0-12 7-21 17-24" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".7"/>`
+        : ''
+    }`
+}
+
+/** Fat: a juicy, golden-brown chicken drumstick, tilted. */
+const fat = svg(
+  `<g transform="translate(3 -3) rotate(40 50 50)">${drumstick('url(#dr-m)', 'url(#dr-b)', 6)}</g>`,
+  vgrad('dr-m', [
+    [0, '#ffd47a'],
+    [0.5, '#f0962e'],
+    [1, '#b45a1a'],
+  ]) +
+    vgrad('dr-b', [
+      [0, '#ffffff'],
+      [1, '#e6d8c0'],
+    ]),
 )
 
 const pets = svg(
@@ -128,35 +146,63 @@ const star = svg(
   `<path d="M50 8l12 25 27 4-20 19 5 27-24-13-24 13 5-27-20-19 27-4z" fill="#ffffff" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>`,
 )
 
-/** A chunky steel dumbbell, tilted: a bar with two big plates and two small ones. */
-const dumbbell = svg(
-  `<g transform="rotate(-30 50 50)">
-    <rect x="22" y="44" width="56" height="12" rx="5" fill="url(#db-bar)" stroke="${OUT}" stroke-width="5"/>
-    <rect x="10" y="22" width="16" height="56" rx="6" fill="url(#db-pl)" stroke="${OUT}" stroke-width="6"/>
-    <rect x="74" y="22" width="16" height="56" rx="6" fill="url(#db-pl)" stroke="${OUT}" stroke-width="6"/>
-    <rect x="25" y="31" width="9" height="38" rx="4" fill="url(#db-pl)" stroke="${OUT}" stroke-width="5"/>
-    <rect x="66" y="31" width="9" height="38" rx="4" fill="url(#db-pl)" stroke="${OUT}" stroke-width="5"/>
-    <path d="M14 30v24M78 30v24" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".6"/>
-  </g>`,
-  vgrad('db-pl', [
-    [0, '#8b94a3'],
-    [1, '#3c4250'],
+/** Food: a big burger - sesame bun, lettuce, a slice of cheese and a juicy patty. */
+const food = svg(
+  `<path d="M12 73h76v5c0 8-6 14-14 14H26c-8 0-14-6-14-14z" fill="url(#bg-b)" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>
+  <rect x="8" y="56" width="84" height="20" rx="10" fill="url(#bg-p)" stroke="${OUT}" stroke-width="6"/>
+  <path d="M18 70h10M44 71h12M74 70h8" stroke="#c27a48" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+  <path d="M8 50h84l-6 10-10-3-8 12-8-12H42l-8 10-8-10-12 2z" fill="#ffd21f" stroke="${OUT}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M6 42h88v10q-5.5 10-11 0q-5.5 10-11 0q-5.5 10-11 0q-5.5 10-11 0q-5.5 10-11 0q-5.5 10-11 0q-5.5 10-11 0q-5.5 10-11 0z" fill="url(#bg-l)" stroke="${OUT}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M8 42C8 20 26 6 50 6s42 14 42 36q0 4-4 4H12q-4 0-4-4z" fill="url(#bg-t)" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>
+  <g fill="#fff7de" stroke="#c98a3a" stroke-width="1.5">
+    <ellipse cx="34" cy="24" rx="3.6" ry="2.2" transform="rotate(-30 34 24)"/><ellipse cx="50" cy="16" rx="3.6" ry="2.2"/>
+    <ellipse cx="66" cy="24" rx="3.6" ry="2.2" transform="rotate(30 66 24)"/><ellipse cx="42" cy="34" rx="3.6" ry="2.2" transform="rotate(-15 42 34)"/>
+    <ellipse cx="60" cy="35" rx="3.6" ry="2.2" transform="rotate(20 60 35)"/><ellipse cx="76" cy="35" rx="3.6" ry="2.2" transform="rotate(40 76 35)"/>
+    <ellipse cx="24" cy="35" rx="3.6" ry="2.2" transform="rotate(-40 24 35)"/>
+  </g>
+  <path d="M17 33c3-11 11-19 21-22" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".7"/>`,
+  vgrad('bg-t', [
+    [0, '#ffdb8c'],
+    [0.55, '#f5a63c'],
+    [1, '#d4781e'],
   ]) +
-    vgrad('db-bar', [
-      [0, '#ffffff'],
-      [1, '#a9b6c6'],
+    vgrad('bg-b', [
+      [0, '#f7b552'],
+      [1, '#c86a1a'],
+    ]) +
+    vgrad('bg-p', [
+      [0, '#9c5428'],
+      [1, '#4e240e'],
+    ]) +
+    vgrad('bg-l', [
+      [0, '#9cf26a'],
+      [1, '#3cb82e'],
     ]),
 )
 
-/** A big grey boulder with cracks and a highlight. */
-const boulder = svg(
-  `<path d="M14 62c-4-20 8-42 30-48 22-6 42 6 44 28 2 18-6 36-26 42-20 6-44-2-48-22z" fill="url(#bo-g)" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M40 30l8 12-6 10M66 52l-10 6 4 12M28 62l10-2" fill="none" stroke="#4a4f58" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M28 34c6-8 14-12 22-12" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".5"/>`,
-  vgrad('bo-g', [
-    [0, '#b6bcc6'],
-    [1, '#6d737e'],
-  ]),
+/** The currency: a glossy gold coin, its edge showing underneath, a star stamped on it. */
+const coin = svg(
+  `<ellipse cx="50" cy="55" rx="41" ry="39" fill="#c46a00" stroke="${OUT}" stroke-width="6"/>
+  <circle cx="50" cy="47" r="40" fill="url(#cn-g)" stroke="${OUT}" stroke-width="6"/>
+  <circle cx="50" cy="47" r="28" fill="url(#cn-i)" stroke="#d98200" stroke-width="4"/>
+  <path d="M50 31l4.1 10.3 11.1.8-8.5 7.1 2.7 10.7L50 54l-9.4 5.9 2.7-10.7-8.5-7.1 11.1-.8z" fill="#fff3a0" stroke="#d98200" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M18 35A34 34 0 0 1 38 15" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".85"/>`,
+  vgrad('cn-g', GOLD) +
+    vgrad('cn-i', [
+      [0, '#ffb300'],
+      [1, '#ffe56a'],
+    ]),
+)
+
+/** The ribbon of a finish tape, red and white stripes in a wave: what a roll smashes through. */
+const TAPE_RIBBON = 'M4 38C28 22 52 56 96 32l-6 14 6 14C52 82 28 48 4 64l6-13z'
+const tape = svg(
+  `<path d="${TAPE_RIBBON}" fill="url(#tp-s)"/>
+  <path d="${TAPE_RIBBON}" fill="url(#tp-sh)"/>
+  <path d="M12 39c10-3 24 2 34 6s18 3 26 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".6"/>
+  <path d="${TAPE_RIBBON}" fill="none" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>`,
+  `<pattern id="tp-s" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="18" height="18" fill="#ffffff"/><rect width="9" height="18" fill="#ff2a3d"/></pattern>` +
+    `<linearGradient id="tp-sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>`,
 )
 
 /** A red gift box tied with a yellow ribbon and bow. */
@@ -205,18 +251,19 @@ function potion(id, liquid, liquidDark, badge) {
   )
 }
 
-const potionWins = potion(
+const potionCoins = potion(
   'pw',
   '#4fd2ff',
   '#1565e0',
-  `<path d="M38 62h24v6c0 7-5 12-12 12s-12-5-12-12z" fill="#ffd23a" stroke="${OUT}" stroke-width="3.5" stroke-linejoin="round"/>
-   <rect x="42" y="80" width="16" height="6" rx="2" fill="#ffd23a" stroke="${OUT}" stroke-width="3"/>`,
+  `<ellipse cx="50" cy="75" rx="13" ry="12" fill="#c46a00" stroke="${OUT}" stroke-width="3.5"/>
+   <circle cx="50" cy="71" r="12" fill="#ffd23a" stroke="${OUT}" stroke-width="3.5"/>
+   <circle cx="50" cy="71" r="6.5" fill="none" stroke="#d98200" stroke-width="2.5"/>`,
 )
-const potionMuscle = potion(
+const potionFat = potion(
   'pm',
-  '#ffb347',
-  '#ff5a1e',
-  `<path d="M36 82v-8c0-6 6-9 11-6l3 2v-6c-1-3 0-6 3-7 3-1 6 0 7 3v14c0 5-4 8-9 8z" fill="#ffd23a" stroke="${OUT}" stroke-width="3.5" stroke-linejoin="round"/>`,
+  '#ff9ce0',
+  '#e0247a',
+  `<g transform="translate(50 72) scale(.36) rotate(40) translate(-50 -50)">${drumstick('#f0962e', '#fff8ec', 9.5, false)}</g>`,
 )
 
 /** An aura: a glowing ring in its colour round a white symbol. */
@@ -309,25 +356,37 @@ const soundOff = svg(
   SPEAKER_GRADIENT,
 )
 
+/** A padlock: something not unlocked yet (buy the one before it first). */
+const lock = svg(
+  `<path d="M32 46V34a18 18 0 0 1 36 0v12" fill="none" stroke="${OUT}" stroke-width="16" stroke-linecap="round"/>
+  <path d="M32 46V34a18 18 0 0 1 36 0v12" fill="none" stroke="url(#lk-s)" stroke-width="7" stroke-linecap="round"/>
+  <rect x="18" y="44" width="64" height="46" rx="10" fill="url(#lk-g)" stroke="${OUT}" stroke-width="6"/>
+  <circle cx="50" cy="63" r="7" fill="${OUT}"/><rect x="46.5" y="64" width="7" height="14" rx="3" fill="${OUT}"/>
+  <rect x="26" y="50" width="48" height="7" rx="3.5" fill="#ffffff" opacity="0.45"/>`,
+  vgrad('lk-g', GOLD) + vgrad('lk-s', [[0, '#f4f7fb'], [1, '#9aa3ad']]),
+)
+
 export const ICON_SVGS = {
+  lock,
   sound,
   soundOff,
   starGold,
   fastForward,
   trophy,
-  muscle,
+  coin,
+  fat,
   pets,
   items,
   store,
   calendar,
   star,
-  dumbbell,
-  boulder,
+  food,
+  tape,
   gift,
   gear,
   home,
-  potionWins,
-  potionMuscle,
+  potionCoins,
+  potionFat,
   close,
   arrowDown,
   check,

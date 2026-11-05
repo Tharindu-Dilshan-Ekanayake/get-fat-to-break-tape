@@ -27,16 +27,21 @@ const LOOK_SMOOTHING = 14
 
 const _desired = new Vector3()
 const _target = new Vector3()
+/** A smashed tape's jolt this frame. */
+const _shake = new Vector3()
 /** Where the camera is looking, eased towards its target (one camera, so module-level). */
 const _lookAt = new Vector3()
 
-/** Up the track: how far behind and above the pusher the chase camera rides. */
-const CHASE_BEHIND = 7.5
-const CHASE_HEIGHT = 4.6
-/** It looks this far ahead of the pusher, over the boulder, up the track. */
-const CHASE_AHEAD = 5
-const CHASE_LOOK_HEIGHT = 2
+/** Down the track: how far behind (uphill of) and above the roller the chase camera rides. */
+const CHASE_BEHIND = 8.5
+const CHASE_HEIGHT = 4.4
+/** It looks this far ahead of the roller, down the track. */
+const CHASE_AHEAD = 7
+const CHASE_LOOK_HEIGHT = 0.6
 const CHASE_SMOOTHING = 6
+/** How hard a smashed tape shakes the camera, and how fast that settles. */
+const SHAKE_SIZE = 0.35
+const SHAKE_DECAY = 5
 
 const smoothstep = (a, b, x) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
@@ -44,10 +49,10 @@ const smoothstep = (a, b, x) => {
 }
 
 /**
- * Where the chase camera wants to be while pushing, and what it looks at: behind and
- * above you looking up the track over the boulder; pulled back and swung aside when it
- * crushes you; swung out to your side at the top, onto you cheering by your boulder
- * with THE TOP's trophy beyond.
+ * Where the chase camera wants to be while rolling, and what it looks at: behind and
+ * above you, looking down the track; drawn back and up when you roll to a stop, worn
+ * out; swung out to your side at the end of the track, onto you cheering. A tape just
+ * smashed shakes it.
  */
 function chaseTarget(out, look) {
   const m = push.meter
@@ -60,11 +65,11 @@ function chaseTarget(out, look) {
     look.y += 1.8 + 0.8 * k
     return
   }
-  const crushed = push.phase === 'crushed' ? smoothstep(0, 0.8, (performance.now() - push.endedAt) / 1000) : 0
-  feetPoint(m - CHASE_BEHIND - 4 * crushed, x * 0.5 + 2.5 * crushed, out)
-  out.y += CHASE_HEIGHT + 2.5 * crushed
-  feetPoint(m + CHASE_AHEAD * (1 - crushed), x * 0.7, look)
-  look.y += CHASE_LOOK_HEIGHT * (1 - crushed) + 0.6 * crushed
+  const tired = push.phase === 'blocked' ? smoothstep(0, 0.9, (performance.now() - push.endedAt) / 1000) : 0
+  feetPoint(m - CHASE_BEHIND - 2 * tired, x * 0.5 + 2 * tired, out)
+  out.y += CHASE_HEIGHT + 2 * tired
+  feetPoint(m + CHASE_AHEAD * (1 - tired), x * 0.7, look)
+  look.y += CHASE_LOOK_HEIGHT + 0.6 * tired
 }
 
 /**
@@ -74,7 +79,7 @@ function chaseTarget(out, look) {
  * joystick owns the left side of the screen as a separate element), pinch zooms.
  *
  * Orbit state lives in `runtime.camera`, so after a push the camera can be handed back
- * exactly where it was taken from. While pushing it's a chase camera up the track
+ * exactly where it was taken from. While rolling it's a chase camera down the track
  * instead.
  */
 export function FollowCamera() {
@@ -164,6 +169,12 @@ export function FollowCamera() {
       const k = 1 - Math.exp(-CHASE_SMOOTHING * delta)
       camera.position.lerp(_desired, k)
       _lookAt.lerp(_target, k)
+      // A tape just smashed: a jolt, settling fast (on top of the easing, so it's felt).
+      if (push.shake > 0.001) {
+        const t = performance.now() * 0.06
+        camera.position.add(_shake.set(Math.sin(t * 1.7), Math.sin(t * 2.3), 0).multiplyScalar(push.shake * SHAKE_SIZE))
+        push.shake *= Math.exp(-SHAKE_DECAY * delta)
+      }
       camera.lookAt(_lookAt)
       return
     }
@@ -180,7 +191,7 @@ export function FollowCamera() {
       _target.z + Math.cos(yaw) * horizontal,
     )
 
-    // After a push the camera is far up the mountain; jump back rather than swoop.
+    // After a roll the camera is far down the valley; jump back rather than swoop.
     if (runtime.camera.snap) {
       runtime.camera.snap = false
       initialised.current = false

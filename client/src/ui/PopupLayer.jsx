@@ -28,7 +28,7 @@ export function PopupLayer() {
           className="absolute left-0 top-0 items-center whitespace-nowrap"
           style={{ display: 'none', fontSize: u(40), gap: u(4), willChange: 'transform, opacity' }}
         >
-          <img src={iconUrl('muscle')} alt="" style={{ width: u(58), height: u(58) }} />
+          <img src={iconUrl('fat')} alt="" style={{ width: u(58), height: u(58) }} />
           <span className="pp-text">
             <span data-popup-text aria-hidden="true" className="pp-text-stroke" style={{ WebkitTextStrokeWidth: u(9) }} />
             <span

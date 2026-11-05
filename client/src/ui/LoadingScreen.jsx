@@ -5,14 +5,14 @@ import { iconUrl } from './icons'
 import StrokeText from './StrokeText'
 
 const TIPS = [
-  'Every click gives you Muscle!',
-  'Stand in a Train Zone to train automatically.',
-  'More Muscle = push the boulder further = more Wins!',
-  'Spend Wins on better dumbbells and eggs.',
-  'Rebirth at max level for x1.5 more Muscle per rebirth.',
-  'WATCH OUT! If you are not strong enough, the boulder will CRUSH you!',
-  'Let go of the boulder and it rolls back to the last SAFEZONE.',
-  'Your power drains as you push. When it hits 0, the boulder rolls back on you!',
+  'Every bite makes you FATTER!',
+  'Sit at a Food Court table and you eat all by yourself.',
+  'More Fat = roll further = smash more tapes = more Coins!',
+  'Spend Coins on tastier food - every bite gives more Fat.',
+  'Rebirth at max level for a Fat boost that lasts forever.',
+  'Every tape takes so much Fat to smash. Too strong? BOING - eat more!',
+  'Every tape you smash through pays Coins!',
+  'You keep your Fat after a roll - roll again and again for Coins.',
 ]
 
 /**
@@ -52,12 +52,12 @@ export function LoadingScreen({ done }) {
       }}
     >
       <div className="pp-loading-disc" aria-hidden="true">
-        <img src={iconUrl('muscle')} alt="" width="150" height="150" draggable={false} />
+        <img src={iconUrl('food')} alt="" width="150" height="150" draggable={false} />
       </div>
 
       <h1 className="m-0 text-center leading-none" style={{ fontSize: 'clamp(40px, 9vw, 96px)', transform: 'rotate(-3deg)' }}>
         <StrokeText stroke="0.16em" gradient="linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #ffe36b 56%, #ffb21e 100%)">
-          +1 MUSCLE TO PUSH BOULDER
+          BELLY BUSTER
         </StrokeText>
       </h1>
 

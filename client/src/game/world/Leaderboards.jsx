@@ -11,15 +11,18 @@ import {
 
 import { LEADERBOARDS } from '@shared/world'
 
-import { useGame } from '../../store/game'
+import { getGame, useGame } from '../../store/game'
 import { useQuality } from '../../store/quality'
 import { BlockSet, disposeBlocks } from '../blocks'
 import { sharedMaterials, STYLE } from '../materials'
 import { BOARD_INFO, boardRows } from './boards'
+import { turned } from './structures'
 
 const BOARD_W = 9
 const BOARD_H = 7
 const BOARD_BOTTOM = 1.4
+/** How far in front of a board's middle line its face is: just proud of the frame. */
+const FACE = 0.47
 const FONT = '"Fredoka One", "Arial Rounded MT Bold", sans-serif'
 
 
@@ -74,12 +77,14 @@ function drawBoards(ctx, w, h, leaderboards, profile) {
 }
 
 /**
- * The three leaderboards behind the egg plaza. Frames are blocks; all three faces are
- * one quad mesh on one canvas texture, redrawn when the boards update (once a minute).
+ * The three leaderboards in a row behind the egg stands, facing the plaza. Frames are blocks;
+ * all three faces are one quad mesh on one canvas texture, redrawn when the boards
+ * update (once a minute).
  */
 export function Leaderboards() {
   const leaderboards = useGame((s) => s.leaderboards)
-  const profile = useGame((s) => s.profile)
+  const rebirths = useGame((s) => s.profile.rebirths)
+  const name = useGame((s) => s.profile.name)
   const playable = useGame((s) => s.playable)
 
   const assets = useMemo(() => {
@@ -92,20 +97,21 @@ export function Leaderboards() {
     texture.minFilter = LinearMipmapLinearFilter
     texture.magFilter = LinearFilter
 
-    // One quad per board, each mapped to its third of the texture. Faces -Z (the plaza).
+    // One quad per board, each mapped to its third of the texture, on the front of its
+    // frame: facing the board's yaw (the plaza).
     const positions = []
     const uvs = []
     const index = []
     LEADERBOARDS.forEach((b, i) => {
-      const x0 = b.x + BOARD_W / 2
-      const x1 = b.x - BOARD_W / 2
-      const z = b.z - 0.55
+      const at = turned(b.x, b.z, b.yaw)
+      const [lx, lz] = at(-BOARD_W / 2, FACE)
+      const [rx, rz] = at(BOARD_W / 2, FACE)
       const y0 = BOARD_BOTTOM
       const y1 = BOARD_BOTTOM + BOARD_H
       const u0 = i / LEADERBOARDS.length
       const u1 = (i + 1) / LEADERBOARDS.length
       const base = i * 4
-      positions.push(x0, y0, z, x1, y0, z, x1, y1, z, x0, y1, z)
+      positions.push(lx, y0, lz, rx, y0, rz, rx, y1, rz, lx, y1, lz)
       uvs.push(u0, 0, u1, 0, u1, 1, u0, 1)
       index.push(base, base + 1, base + 2, base, base + 2, base + 3)
     })
@@ -117,8 +123,11 @@ export function Leaderboards() {
 
     const frames = new BlockSet()
     for (const b of LEADERBOARDS) {
-      frames.addOn(b.x, 0, b.z, BOARD_W + 0.8, BOARD_BOTTOM + BOARD_H + 0.6, 0.9, '#2f3f8a')
-      frames.addOn(b.x, BOARD_BOTTOM + BOARD_H + 0.6, b.z, BOARD_W + 1.2, 0.6, 1.1, '#ffd21f', STYLE.GLOW)
+      frames.addOn(b.x, 0, b.z, BOARD_W + 0.8, BOARD_BOTTOM + BOARD_H + 0.6, 0.9, '#2f3f8a', STYLE.STUDS, b.yaw)
+      frames.addOn(b.x, BOARD_BOTTOM + BOARD_H + 0.6, b.z, BOARD_W + 1.2, 0.6, 1.1, '#ffd21f', STYLE.GLOW, b.yaw)
+      // A glowing step along its foot, in its board's colour.
+      const [sx, sz] = turned(b.x, b.z, b.yaw)(0, 0.75)
+      frames.addOn(sx, 0, sz, BOARD_W + 0.4, 0.12, 0.6, BOARD_INFO[b.id].color, STYLE.GLOW, b.yaw)
     }
     return { canvas, texture, geometry, material, frames: frames.build(sharedMaterials().blocks) }
   }, [])
@@ -139,16 +148,15 @@ export function Leaderboards() {
     let cancelled = false
     document.fonts?.load(`32px ${FONT}`).finally(() => {
       if (cancelled) return
-      drawBoards(assets.canvas.getContext('2d'), assets.canvas.width, assets.canvas.height, leaderboards, profile)
+      drawBoards(assets.canvas.getContext('2d'), assets.canvas.width, assets.canvas.height, leaderboards, getGame().profile)
       assets.texture.needsUpdate = true
     })
     return () => {
       cancelled = true
     }
-    // Profile changes constantly while training; offline boards only need the name
+    // Profile changes constantly while eating; offline boards only need the name
     // and headline stats, which a rebirth or a new best will bring along.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assets, playable, leaderboards, profile.rebirths, profile.name])
+  }, [assets, playable, leaderboards, rebirths, name])
 
   return (
     <>

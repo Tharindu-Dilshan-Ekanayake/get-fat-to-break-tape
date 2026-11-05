@@ -3,18 +3,19 @@ import { Vector3 } from 'three'
 import { SAFE_LENGTH } from '@shared/balance'
 import { SLOPE_ANGLE, TRACK_START_Z } from '@shared/world'
 
-import { isSlope, MAX_STAGES, SLOPES_BELOW, STAGES, stageAt, stageStart, TRACK_LENGTH } from './course'
+import { isSlope, SLOPES_BELOW, STAGES, stageAt, stageStart, TRACK_LENGTH } from './course'
 
 /**
- * Geometry of the boulder track of the world you're in (see course.js): it climbs
- * north from the plaza's edge, each stage a
- * straight slope, with a flat SAFEZONE between one stage and the next and a flat summit
- * at THE TOP.
+ * Geometry of the tape track of the world you're in (see course.js): it runs north from
+ * the plaza's edge and down into the valley (SLOPE_ANGLE is negative), each stage a
+ * straight slope with a tape across its end, a flat checkpoint between one stage and
+ * the next, and a flat finish at the end.
  *
  * Track metre `m` is measured along the track from the start line (the plaza's north
- * edge): up the slopes and across the flats alike. Before the start (m < 0) the ground
- * is the flat plaza. Everything here is pure maths and allocation-free, so the frame
- * loop can call it freely.
+ * edge): down the slopes and across the flats alike. Before the start (m < 0) the
+ * ground is the flat plaza. Everything here is pure maths and allocation-free, so the
+ * frame loop can call it freely. (Names like `climbed` and "top" are from when it went
+ * uphill; the maths is the same either way.)
  */
 
 export const SIN = Math.sin(SLOPE_ANGLE)
@@ -54,7 +55,7 @@ export function meterAtZ(z) {
   return TRACK_LENGTH
 }
 
-/** How a piece of track at metre m is tipped: up to the north on a slope, level on a flat. */
+/** How a piece of track at metre m is tipped: down to the north on a slope, level on a flat. */
 export const sectionTilt = (m) => (isSlope(m) ? SLOPE_ANGLE : 0)
 
 /** Over this many metres either side of a bend, things riding the track tip gradually. */
@@ -66,7 +67,7 @@ function slopeWeight(m, j) {
   return clamp01((m - s + BEND) / (2 * BEND)) * clamp01((s + STAGES[j].length - m + BEND) / (2 * BEND))
 }
 
-/** The tilt something riding the track at metre m takes, eased round the bends so a boulder never jumps. */
+/** The tilt something riding the track at metre m takes, eased round the bends so a roller never jumps. */
 export function tiltAt(m) {
   if (m <= -BEND) return 0
   const i = stageAt(m)
@@ -83,7 +84,7 @@ export function surfaceY(z, h) {
 
 /**
  * World point at track metre m, `x` to the side and `h` off the floor along its normal
- * (so a boulder sits on it, and leans back on a slope).
+ * (so a ball sits on it, square to the slope).
  */
 export function trackPoint(m, x, h, out) {
   const t = tiltAt(m)
@@ -106,13 +107,11 @@ export function slopeBoxPlacement(m, x, h) {
   return [_p.x, _p.y, _p.z, t]
 }
 
-// --- Boulders ----------------------------------------------------------------------
+// --- The ball you roll as -------------------------------------------------------------
 
 /**
- * Each stage's boulder is a little bigger than the last (the first is START_BOULDER's),
- * up to 0.85 bigger on the last stage, so even the biggest fits the track.
+ * Curled up for a roll, a body of `bulk` (0 skinny - 1 as fat as can be, see
+ * playerPose.bulkFor) is a ball about this many metres across its middle: what it rolls
+ * on, so how fast it turns, and how close a coin bubble must come to be taken.
  */
-const BOULDER_RADII = Array.from({ length: MAX_STAGES }, (_, i) => 1.5 + (i * 0.85) / Math.max(1, MAX_STAGES - 1))
-export const boulderRadius = (stage) => BOULDER_RADII[Math.max(0, Math.min(BOULDER_RADII.length - 1, stage))]
-/** From a pusher's feet to the middle of their boulder, along the track. */
-export const boulderGap = (stage) => boulderRadius(stage) + 0.55
+export const ballRadius = (bulk = 0) => 0.46 + 0.3 * Math.min(1, Math.max(0, bulk))

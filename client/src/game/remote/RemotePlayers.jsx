@@ -59,9 +59,8 @@ function writeNameplate(plate, name, at, distance, maxDistance, camera, size) {
 
 /**
  * Everyone else: where they are (interpolated from the server's 10 Hz updates), their
- * name tags, shadows and pets (handed to the shared pet renderer). Up the mountain
- * they're where the server says: behind their boulder while they push it (Boulders draws
- * that), walking about a SAFEZONE between pushes. Their bodies are their real avatars
+ * name tags, shadows and pets (handed to the shared pet renderer). Down the track
+ * they're where the server says, rolling. Their bodies are their real avatars
  * (RemoteAvatars).
  */
 export function RemotePlayers() {
@@ -86,12 +85,12 @@ export function RemotePlayers() {
       const moved = _prev.distanceTo(r.position)
       r.speed = r.speed * 0.8 + (moved / Math.max(delta, 1e-3)) * 0.2
 
-      // --- Up the mountain (stepRemotePushers placed them) ---------------------------
+      // --- Rolling down the track (stepRemotePushers placed them) --------------------
       if (r.pushing) {
         const distance = camera.position.distanceTo(r.shownAt)
         r.shadow.visible = distance < settings.remoteDrawDistance * PUSHER_DISTANCE_SCALE
         if (!r.shadow.visible) continue
-        _v.copy(r.shownAt).y += 2.2
+        _v.copy(r.shownAt).y += (r.ballRadius ?? 1) + 0.9
         plate = writeNameplate(plate, r.name, _v, distance, settings.remoteNameDistance, camera, size)
         continue
       }
@@ -99,7 +98,7 @@ export function RemotePlayers() {
       // --- In the plaza -----------------------------------------------------------
       r.shownAt.copy(r.position)
       const distance = camera.position.distanceTo(r.position)
-      // Someone mid-push we never saw start (we joined late) isn't drawn at the bottom.
+      // Someone mid-roll we never saw start (we joined late) isn't drawn at the top.
       const visible = distance < settings.remoteDrawDistance && r.anim !== 'push'
       r.shadow.visible = visible
 

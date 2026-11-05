@@ -1,184 +1,242 @@
 /**
- * Lobby layout: every gameplay-relevant position and trigger area.
+ * Lobby layout - "Snack Town": every gameplay-relevant position and trigger area.
  *
  * Shared by the client (which renders it) and the server (which validates positions
- * against it), so the two can never disagree about where a Train Zone or the boulder is.
+ * against it), so the two can never disagree about where a Food Court or the track is.
  *
- * Units are roughly metres - the avatar is 1.8 tall. +X is east, -Z is north, which is
- * "forward" from spawn and the way up the mountain.
+ * Units are roughly metres - the avatar is 1.8 tall. +X is east, -Z is north: the way
+ * to the ROLL ZONE and down the tape track.
  *
- * Seen from spawn: the boulder and the track climbing between the cliffs straight ahead
- * (north), the Train Zones along the left (west) side, the dumbbell shop on the right
- * (east), eggs and leaderboards behind.
+ * From above, as you see it from spawn (facing north, the ROLL ZONE ahead):
  *
- * Rects are `{ minX, maxX, minZ, maxZ }` on the ground plane.
+ *    [6]   aura stand          [ ROLL ZONE ]                 WORLD 2 portal
+ *    [5]                              |
+ *    [4]   FOOD COURTS                |  (a clear walk)        FOOD SHOP hut
+ *    [3]   (left: sit and eat,        |
+ *    [2]    1 to 7 in order)          |
+ *    [1]   potions              SPAWN       free gift    the champion's statue
+ *    [0]                eggs  eggs  eggs  eggs  DEMON EGG    sphinx
+ *                       leaderboards (behind you)
+ *
+ * Rects are `{ minX, maxX, minZ, maxZ }` on the ground plane. Yaws are radians about +Y,
+ * 0 facing +Z (south), PI facing north.
  */
 
-export const SPAWN = { x: 0, z: 3 }
+/** Where you appear, and which way you face: north, at the ROLL ZONE. */
+export const SPAWN = { x: 0, z: 6, yaw: Math.PI }
 
 /** The flat, walkable plaza. Mountains surround it on every side but the track. */
 export const PLAZA = { minX: -46, maxX: 46, minZ: -38, maxZ: 34 }
 
-// --- The boulder track ----------------------------------------------------------------
+// --- The tape track -------------------------------------------------------------------
 
 /**
- * The foot of the mountain: the plaza's north edge, where the track starts climbing.
- * Track metre m is m metres up the slope from here.
+ * The top of the hill: the plaza's north edge, where the track starts going down.
+ * Track metre m is m metres down the slope from here.
  */
 export const TRACK_START_Z = PLAZA.minZ
-/** How steeply the track climbs: about 8 degrees. */
-export const SLOPE_ANGLE = 0.14
-/** Half the width of the track's floor, between its walls: narrow, as in the reference. */
+/**
+ * How steeply the track's slopes go: negative, so it runs DOWNHILL from the plaza into
+ * the valley - about 9 degrees, steep enough to roll down.
+ */
+export const SLOPE_ANGLE = -0.16
+/** Half the width of the track's floor, between its walls. */
 export const TRACK_HALF_WIDTH = 3.8
 
-/**
- * The PUSH ZONE in front of the first boulder, at the foot of the track: walking onto it
- * starts a push.
- */
+/** The ROLL ZONE at the top of the track: walking onto it with Fat on you starts a roll. */
 export const PUSH_ZONE = { minX: -3.4, maxX: 3.4, minZ: TRACK_START_Z, maxZ: TRACK_START_Z + 5 }
-/** Where you're put back after a push: a little way short of the zone, facing it. */
+/** Where you're put back after a roll: a little way short of the zone, facing it. */
 export const PUSH_RETURN = { x: 0, z: TRACK_START_Z + 13 }
-/**
- * The boulder waiting at the start (its middle), and its radius on the ground: where the
- * client draws the first stage's (PUSH_START + its radius + 0.55 up the track).
- */
-export const START_BOULDER = { x: 0, z: TRACK_START_Z + 0.45, radius: 1.5 }
-
-/** Walkable ground; the controller clamps the player into it. Nothing up the track. */
+/** Walkable ground; the controller clamps the player into it. Nothing down the track. */
 export const WALKABLE = [PLAZA]
 
-// --- Train Zones ----------------------------------------------------------------------
+// --- The Food Courts (left) ---------------------------------------------------------
 
 /**
- * The gym pads line the west side of the plaza, one behind the other, nearest spawn
- * first. Each is a raised pad with a long bench down its middle: sit on it to train
- * (see BENCH_X). The gym equipment stands along its west edge.
+ * The Food Courts, in a column down the west (left) side of the plaza, in order: the
+ * FREE one (0) at the back (south), by the eggs, and each one after it the next up the
+ * column, better each time, to the two shop-pass ones (5, 6) up by the ROLL ZONE. Each
+ * is a little restaurant on a raised deck: its kitchen along the back (west), and in
+ * front a long bench facing east across its table, at the plaza. Sit on it to eat.
  */
 export const ZONE_COUNT = 7
-export const ZONE_PITCH = 9.6
-export const ZONE_HALF = { x: 6, z: 4 }
-export const ZONE_X = -35
-/** The pad's top, a step up from the plaza. */
-export const ZONE_HEIGHT = 0.4
-/** The row of equipment along each pad's back (west) edge. */
-export const ZONE_RACK_X = ZONE_X - ZONE_HALF.x + 1.1
-const ZONE0_Z = 28
-
-export const zoneCenterZ = (index) => ZONE0_Z - index * ZONE_PITCH
-
-/** The pad of Train Zone `index`: standing on it is training. */
-export function zoneRect(index) {
-  const cz = zoneCenterZ(index)
-  return { minX: ZONE_X - ZONE_HALF.x, maxX: ZONE_X + ZONE_HALF.x, minZ: cz - ZONE_HALF.z, maxZ: cz + ZONE_HALF.z }
-}
+const COURT_X = -35
+const COURT_SPACING = 9.6
+const COURT_FIRST_Z = 28
+export const FOOD_COURTS = Array.from({ length: ZONE_COUNT }, (_, i) => ({
+  x: COURT_X,
+  z: Math.round((COURT_FIRST_Z - i * COURT_SPACING) * 100) / 100,
+  facing: 'east',
+}))
 
 /**
- * Each Train Zone's long training bench, down the middle of its pad and facing the
- * plaza (east): you train sitting on it - anywhere along it, side by side with others -
- * and walking into it sits you down. Its seat runs BENCH_HALF either way of the pad's
- * middle, at x BENCH_X.
+ * The ways a restaurant can face, as unit vectors on the ground: `forward` is the way its
+ * diners look (out over the table), `across` runs along its bench.
  */
-export const BENCH_X = ZONE_X + 0.4
-export const BENCH_HALF = 3.2
-/** How high the seat's top is over the pad. */
-export const SEAT_HEIGHT = 0.3
-/** Within this of the seat's line, you're on it. */
-export const SEAT_REACH = 0.6
-/** Facing east, at the plaza: the way you sit on a bench (yaw 0 faces +Z). */
-export const SEAT_YAW = Math.PI / 2
+const FACINGS = {
+  north: { forward: [0, -1], across: [1, 0] },
+  south: { forward: [0, 1], across: [-1, 0] },
+  east: { forward: [1, 0], across: [0, 1] },
+  west: { forward: [-1, 0], across: [0, -1] },
+}
+const facingOf = (zone) => FACINGS[FOOD_COURTS[zone].facing] ?? FACINGS.north
 
-/** The Train Zone whose bench is at (x, z) (with `slack` to spare all round), or -1. */
-export function benchAt(x, z, slack = 0) {
-  if (Math.abs(x - BENCH_X) > SEAT_REACH + slack) return -1
-  for (let i = 0; i < ZONE_COUNT; i += 1) {
-    if (Math.abs(z - zoneCenterZ(i)) <= BENCH_HALF + slack) return i
-  }
-  return -1
+/** Half the deck's size: front to back (DEPTH) and across, along its bench (WIDTH). */
+const DECK_DEPTH = 6
+const DECK_WIDTH = 4
+/** The deck's top, a step up from the plaza. */
+export const ZONE_HEIGHT = 0.4
+
+/** Food Court `index`'s middle and the way it faces ('north' | 'south' | 'east' | 'west'). */
+export const zoneCenter = (index) => FOOD_COURTS[index]
+
+/** Half the size of Food Court `index`'s deck along x and z (it depends which way it faces). */
+export function zoneHalf(index) {
+  const [fx] = facingOf(index).forward
+  return fx !== 0 ? { x: DECK_DEPTH, z: DECK_WIDTH } : { x: DECK_WIDTH, z: DECK_DEPTH }
 }
 
-/** Where along Train Zone `zone`'s bench you sit, getting on at z: on the seat, not past its ends. */
-export const benchSeatZ = (zone, z) =>
-  Math.min(zoneCenterZ(zone) + BENCH_HALF - 0.3, Math.max(zoneCenterZ(zone) - BENCH_HALF + 0.3, z))
+/** The deck of Food Court `index`. */
+export function zoneRect(index) {
+  const { x, z } = FOOD_COURTS[index]
+  const half = zoneHalf(index)
+  return { minX: x - half.x, maxX: x + half.x, minZ: z - half.z, maxZ: z + half.z }
+}
 
-/** The pad and the dark rim round it: what a locked zone walls off. */
+/** The deck and the dark rim round it: what a locked Food Court walls off. */
 export function zoneDeckRect(index) {
   const r = zoneRect(index)
   return { minX: r.minX - 0.4, maxX: r.maxX + 0.4, minZ: r.minZ - 0.4, maxZ: r.maxZ + 0.4 }
 }
 
-// --- Dumbbell shop --------------------------------------------------------------------
-
 /**
- * The dumbbell shop: an open-air yard east of the plaza with two display stages, the
- * first ten dumbbells on the low front one and the next ten on the higher back one, and
- * a big DUMBBELLS sign behind. Both stages are low enough to walk straight onto.
+ * Each Food Court's long bench runs across its deck, a little in front of the middle,
+ * facing out over its table: you eat sitting on it - anywhere along it, side by side
+ * with others - and walking into it sits you down. Its seat runs BENCH_HALF either way
+ * of the middle.
  */
-export const SHOP = { minX: 16, maxX: 42, minZ: -26, maxZ: 12 }
-export const SHOP_STAGES = [
-  { minX: 17.5, maxX: 28, minZ: -25, maxZ: 11, height: 0.5 },
-  { minX: 30.5, maxX: 41, minZ: -25, maxZ: 11, height: 1 },
-]
-/** The sign along the back (east) edge, facing the plaza, high enough to clear the labels. */
-export const SHOP_SIGN = { x: 42.6, minZ: -23, maxZ: 9, top: 16 }
-export const PAD_SIZE = 4.4
+export const BENCH_HALF = 3.2
+/** How far in front of the deck's middle the bench's seat line is. */
+const BENCH_FORWARD = 0.4
+/** How high the seat's top is over the deck. */
+export const SEAT_HEIGHT = 0.3
+/** Within this of the seat's line, you're on it. */
+export const SEAT_REACH = 0.6
 
-/** Rows of display stands, nearest the plaza first: two rows on each stage. */
-const PAD_ROWS_X = [20, 25.5, 33, 38.5]
+/** The way you face sat at Food Court `zone`: out over its table (yaw 0 faces +Z). */
+export function seatYaw(zone) {
+  const [fx, fz] = facingOf(zone).forward
+  return Math.atan2(fx, fz)
+}
 
-/**
- * Twenty stands, five to a row 7 m apart. `row` (0-3, front to back) lets the labels
- * above them step up so nearer ones don't hide farther ones.
- */
-export const DUMBBELL_PADS = Array.from({ length: 20 }, (_, i) => {
-  const row = Math.floor(i / 5)
-  return {
-    index: i,
-    row,
-    x: PAD_ROWS_X[row],
-    z: (SHOP.minZ + SHOP.maxZ) / 2 - 14 + (i % 5) * 7,
-    y: SHOP_STAGES[row < 2 ? 0 : 1].height,
+/** (x, z) in Food Court `zone`'s own terms: how far forward of its middle, how far across. */
+function local(zone, x, z) {
+  const { forward, across } = facingOf(zone)
+  const c = FOOD_COURTS[zone]
+  const dx = x - c.x
+  const dz = z - c.z
+  return { ahead: dx * forward[0] + dz * forward[1], side: dx * across[0] + dz * across[1] }
+}
+
+/** The Food Court whose bench is at (x, z) (with `slack` to spare all round), or -1. */
+export function benchAt(x, z, slack = 0) {
+  for (let i = 0; i < ZONE_COUNT; i += 1) {
+    const { ahead, side } = local(i, x, z)
+    if (Math.abs(ahead - BENCH_FORWARD) <= SEAT_REACH + slack && Math.abs(side) <= BENCH_HALF + slack) return i
   }
-})
+  return -1
+}
 
-export const padRect = (pad) => ({
-  minX: pad.x - PAD_SIZE / 2,
-  maxX: pad.x + PAD_SIZE / 2,
-  minZ: pad.z - PAD_SIZE / 2,
-  maxZ: pad.z + PAD_SIZE / 2,
-})
+/**
+ * Where on Food Court `zone`'s bench you sit, getting on at (x, z): on the seat line, as
+ * far along it as you were, not past its ends. Written into `out` ({ x, z }).
+ */
+export function benchSeat(zone, x, z, out = { x: 0, z: 0 }) {
+  const { forward, across } = facingOf(zone)
+  const c = FOOD_COURTS[zone]
+  const side = Math.min(BENCH_HALF - 0.3, Math.max(-(BENCH_HALF - 0.3), local(zone, x, z).side))
+  out.x = c.x + forward[0] * BENCH_FORWARD + across[0] * side
+  out.z = c.z + forward[1] * BENCH_FORWARD + across[1] * side
+  return out
+}
 
-// --- Eggs, stands, boards -------------------------------------------------------------
+/** The line of kitchen counters along the back of Food Court `zone`'s deck: a solid rect. */
+export function kitchenRect(zone) {
+  const { forward, across } = facingOf(zone)
+  const c = FOOD_COURTS[zone]
+  const back = DECK_DEPTH - 1.1
+  const cx = c.x - forward[0] * back
+  const cz = c.z - forward[1] * back
+  // 0.8 deep (front to back), the deck's width less a bit across.
+  const hx = Math.abs(forward[0]) * 0.8 + Math.abs(across[0]) * (DECK_WIDTH - 0.6)
+  const hz = Math.abs(forward[1]) * 0.8 + Math.abs(across[1]) * (DECK_WIDTH - 0.6)
+  return { minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz }
+}
 
-/** The egg row stands behind spawn, the leaderboards behind it. */
+// --- The Food Shop (right) ------------------------------------------------------------
+
+/**
+ * The Food Shop: one hut on the east (right) side of the plaza, its counter facing the
+ * plaza (west). Walk up to the counter and the shop opens - every food in one list, to
+ * buy (in order) and pick what you eat. FOOD_HUT is the hut itself (solid, `half` its
+ * size either way); FOOD_COUNTER the spot in front of it where the shop opens.
+ */
+export const FOOD_HUT = { x: 29, z: -12, half: 3.4 }
+export const FOOD_COUNTER = { x: 23, z: -12, radius: 3.2 }
+
+/** Whether (x, z) is at the Food Shop's counter (give or take `slack`). */
+export const atFoodCounter = (x, z, slack = 0) => Math.hypot(x - FOOD_COUNTER.x, z - FOOD_COUNTER.z) <= FOOD_COUNTER.radius + slack
+
+// --- Behind spawn: the eggs and the leaderboards; and everything else --------------------
+
+/**
+ * The egg stands, in a row behind spawn (south), facing north over the plaza: the four
+ * everyday eggs, and the big Demon egg at the east end.
+ */
+const EGG_ROW_Z = 21
 export const EGG_STANDS = [
-  { eggId: 'basic', x: -12, z: 21 },
-  { eggId: 'meadow', x: -4, z: 21 },
-  { eggId: 'sunset', x: 4, z: 21 },
-  { eggId: 'unicorn', x: 12, z: 21 },
-  { eggId: 'demon', x: 21, z: 22, big: true },
+  { eggId: 'basic', x: -14, z: EGG_ROW_Z, yaw: Math.PI },
+  { eggId: 'meadow', x: -5, z: EGG_ROW_Z, yaw: Math.PI },
+  { eggId: 'sunset', x: 4, z: EGG_ROW_Z, yaw: Math.PI },
+  { eggId: 'unicorn', x: 13, z: EGG_ROW_Z, yaw: Math.PI },
+  { eggId: 'demon', x: 23, z: EGG_ROW_Z + 1, yaw: Math.PI, big: true },
 ]
 export const EGG_TRIGGER_RADIUS = 4.2
 
-/** Limited premium pet on display. */
-export const SPHINX_STAND = { x: 37, z: 21 }
+/** Limited premium pet on display, in the south-east corner. */
+export const SPHINX_STAND = { x: 37, z: 23, yaw: -Math.PI * 0.8 }
 
+/** The leaderboards, in a row behind the eggs, facing north over the plaza. */
 export const LEADERBOARDS = [
-  { id: 'rebirths', x: -12, z: 30 },
-  { id: 'muscle', x: 0, z: 30 },
-  { id: 'height', x: 12, z: 30 },
+  { id: 'rebirths', x: -12, z: 30.5, yaw: Math.PI },
+  { id: 'fat', x: 0, z: 30.5, yaw: Math.PI },
+  { id: 'height', x: 12, z: 30.5, yaw: Math.PI },
 ]
 
-/** The Future World portal, out past the shop. Name and Wins are WORLD_PORTALS in balance.js. */
-export const PORTALS = [{ id: 'future', x: 28, z: -31, radius: 3.6 }]
+/** The WORLD 2 portal, north-east of the plaza. Name and Coins are WORLD_PORTALS in balance.js. */
+export const PORTALS = [{ id: 'future', x: 30, z: -31, radius: 3.6 }]
 
-/** The aura stand and the potion stand: walk up to them to open their panels. */
-export const AURA_STAND = { x: -19, z: -28, radius: 3.6 }
-export const POTION_STAND = { x: -19, z: 7, radius: 3.6 }
+/**
+ * The aura stand (north-west, by the ROLL ZONE, its counter facing south) and the potion
+ * stand (west of spawn, its counter facing east): walk up to them to open their panels.
+ * The potion stand is a little north of the street from spawn to the FREE Food Court, so
+ * walking (or following the tutorial's arrows) straight there neither bumps into it nor
+ * opens its panel.
+ */
+export const AURA_STAND = { x: -17, z: -28, radius: 3.6 }
+export const POTION_STAND = { x: -18, z: -2, radius: 3.6 }
 
-/** The big buff statue by the boulder, asking if you can reach the top. */
-export const STATUE = { x: 12, z: -34 }
+/**
+ * The champion eater's statue, on the right of the plaza level with spawn - well clear
+ * of the ROLL ZONE's gate and of the straight walk up to it (WALKWAY), which nothing
+ * stands in.
+ */
+export const STATUE = { x: 24, z: 6, radius: 2.6 }
 
-export const FREE_REWARD = { x: 10, z: 7, radius: 3 }
+/** The straight walk from spawn up to the ROLL ZONE: nothing stands in it. */
+export const WALKWAY = { minX: -4.6, maxX: 4.6, minZ: PLAZA.minZ, maxZ: 6 }
+
+export const FREE_REWARD = { x: 7, z: 12, radius: 3 }
 export const WATERFALL = { x: 38, z: -38 }
 
 // --- Collision ----------------------------------------------------------------------
@@ -190,10 +248,10 @@ const box = (x, z, halfX, halfZ) => ({
   maxZ: z + halfZ,
 })
 
-/** Solid, never-changing obstacles. Locked Train Zones add their own walls at runtime. */
+/** Solid, never-changing obstacles. Locked Food Courts add their own walls at runtime. */
 export const STATIC_COLLIDERS = [
-  // The shop's sign.
-  { minX: SHOP_SIGN.x - 0.5, maxX: SHOP_SIGN.x + 0.5, minZ: SHOP_SIGN.minZ - 0.5, maxZ: SHOP_SIGN.maxZ + 0.5 },
+  // The Food Shop hut.
+  box(FOOD_HUT.x, FOOD_HUT.z, FOOD_HUT.half, FOOD_HUT.half),
   // Egg pedestals.
   ...EGG_STANDS.map((s) => box(s.x, s.z, s.big ? 2.1 : 1.6, s.big ? 2.1 : 1.6)),
   box(SPHINX_STAND.x, SPHINX_STAND.z, 3, 3),
@@ -205,28 +263,24 @@ export const STATIC_COLLIDERS = [
   box(AURA_STAND.x, AURA_STAND.z - 1.2, 2.95, 0.8),
   box(AURA_STAND.x, AURA_STAND.z - 3.5, 4.4, 0.45),
   box(POTION_STAND.x - 1.2, POTION_STAND.z, 0.9, 2.6),
-  box(STATUE.x, STATUE.z, 2.2, 2.2),
-  // The boulder waiting at the start.
-  box(START_BOULDER.x, START_BOULDER.z, START_BOULDER.radius - 0.2, START_BOULDER.radius - 0.5),
-  // The cliffs either side of the track's foot.
+  // The statue's round plinth.
+  box(STATUE.x, STATUE.z, STATUE.radius - 0.2, STATUE.radius - 0.2),
+  // The cliffs either side of the top of the track.
   { minX: PLAZA.minX, maxX: -TRACK_HALF_WIDTH - 1, minZ: PLAZA.minZ - 1, maxZ: PLAZA.minZ + 0.6 },
   { minX: TRACK_HALF_WIDTH + 1, maxX: PLAZA.maxX, minZ: PLAZA.minZ - 1, maxZ: PLAZA.minZ + 0.6 },
-  // Each Train Zone's row of equipment.
-  ...Array.from({ length: ZONE_COUNT }, (_, i) => box(ZONE_RACK_X, zoneCenterZ(i), 0.8, ZONE_HALF.z - 0.6)),
+  // Each Food Court's kitchen along its back.
+  ...FOOD_COURTS.map((_, i) => kitchenRect(i)),
 ]
 
-/** Raised floors the player stands on, as rects with a height. */
-export const PLATFORMS = [
-  ...SHOP_STAGES.map((s) => ({ ...s })),
-  ...Array.from({ length: ZONE_COUNT }, (_, i) => ({ ...zoneDeckRect(i), height: ZONE_HEIGHT })),
-]
+/** Raised floors the player stands on, as rects with a height: the Food Courts' decks. */
+export const PLATFORMS = Array.from({ length: ZONE_COUNT }, (_, i) => ({ ...zoneDeckRect(i), height: ZONE_HEIGHT }))
 
 // --- Helpers ------------------------------------------------------------------------
 
 export const inRect = (r, x, z, margin = 0) =>
   x >= r.minX - margin && x <= r.maxX + margin && z >= r.minZ - margin && z <= r.maxZ + margin
 
-/** Index of the Train Zone whose pad is under (x, z), or -1. */
+/** Index of the Food Court whose deck is under (x, z), or -1. */
 export function zoneAt(x, z, margin = 0) {
   for (let i = 0; i < ZONE_COUNT; i += 1) {
     if (inRect(zoneRect(i), x, z, margin)) return i
@@ -245,20 +299,12 @@ export function portalAt(x, z, margin = 0) {
 }
 
 /**
- * Whether a move from `from` to `to` is the trip back after a push: off the push zone
+ * Whether a move from `from` to `to` is the trip back after a roll: off the ROLL ZONE
  * onto PUSH_RETURN. Faster than walking, so the server's speed check lets exactly this
  * one through.
  */
 export const isPushReturn = (from, to) =>
   inPushZone(from.x, from.z, 2) && Math.hypot(to.x - PUSH_RETURN.x, to.z - PUSH_RETURN.z) < 2.5
-
-/** Index of the dumbbell pad under (x, z), or -1. */
-export function padAt(x, z) {
-  for (const pad of DUMBBELL_PADS) {
-    if (inRect(padRect(pad), x, z)) return pad.index
-  }
-  return -1
-}
 
 /** The egg stand within reach of (x, z), or null. */
 export function eggStandNear(x, z) {
