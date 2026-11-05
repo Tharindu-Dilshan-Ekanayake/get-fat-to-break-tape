@@ -1,11 +1,11 @@
 import { Vector3 } from 'three'
 
 /**
- * Floating "+12" Muscle text: a fixed pool of DOM elements (max 14 alive), positioned
+ * Floating "+12" Fat text: a fixed pool of DOM elements (max 14 alive), positioned
  * by projecting a world point each frame. When the pool is full the oldest popup is
  * recycled, so fast clicking can never pile up elements.
  *
- * Clicks, and everything while you push, are pinned to the screen instead (see
+ * Bites, and everything while you roll, are pinned to the screen instead (see
  * spawnScattered), scattered about it rather than chasing you round.
  */
 
@@ -54,7 +54,7 @@ export function registerPopupElements(elements) {
  * @param {{ iconUrl?: string, scale?: number, gradient?: string, life?: number,
  *   follow?: Vector3, screen?: boolean, u?: number, v?: number, rot?: number }} [style]
  *   no `iconUrl` = text only; `follow` keeps the popup where it started relative to that
- *   (moving) point, e.g. someone pushing up the mountain. `screen` pins it to the screen at
+ *   (moving) point, e.g. someone rolling down the track. `screen` pins it to the screen at
  *   `u`/`v` instead (`position` is then ignored); `rot` tilts it as it lands.
  */
 export function spawnPopup(text, position, style = {}) {
@@ -93,7 +93,7 @@ export function spawnPopup(text, position, style = {}) {
   slot.el.style.display = 'flex'
 }
 
-// --- Scattered over the screen: clicks, and while you push -----------------------------
+// --- Scattered over the screen: bites, and while you roll ------------------------------
 
 /**
  * The scatter area (reference px, the 1920x1080 layout): this far either side of the

@@ -5,10 +5,11 @@ import { Vector3 } from 'three'
 import { walkSpeed } from '@shared/balance'
 
 import { remotePlayers } from '../../net/remotePlayers'
-import { createHeldDumbbell, disposeDumbbellMesh } from '../dumbbell'
+import { getQuality } from '../../store/quality'
+import { createHeldFood, disposeHeldFood } from '../food'
 import { BloxityAvatar } from '../PlayerAvatar'
 import { emoteMotion } from '../emotes'
-import { bulkFor, growBody } from '../playerPose'
+import { bulkFor, FAT_SCALE, growBody } from '../playerPose'
 import { stepRemotePushers } from '../push/remotePush'
 
 /** How often the set of players is checked for comings, goings and outfit changes. */
@@ -20,28 +21,32 @@ const POSE_HALF = 30
 const POSE_QUARTER = 60
 /** Top walking speed: full stride amplitude, as for your own character. */
 const MAX_SPEED = walkSpeed()
-/** Facing up the track, at the boulder. */
-const UPHILL_YAW = Math.PI
-/** A lift's curl takes this long, as for your own character. */
-const CURL_MS = 380
+/** Facing down the track, rolling. */
+const DOWNHILL_YAW = Math.PI
+/** Curled up, the middle of the ball above the feet's standing spot (skinny -> fat), as for yours. */
+const BALL_MIDDLE = [0.95, 1.2]
+/** A bite (up to the mouth, three chomps, down) takes this long, as for your own character. */
+const CURL_MS = 640
 
 const _up = new Vector3(0, 1, 0)
 
 /**
- * One other player as their real Bloxity avatar, dressed as they are, holding their
- * dumbbell and posed by the same playerPose as yours, from what the network says
- * they're doing: walking pace, curling in a Train Zone or after a lift, jumping - and up
- * the mountain, pushing their boulder (Boulders draws it) or walking a SAFEZONE.
+ * One other player as their real Bloxity avatar, dressed as they are, as fat as they
+ * are, holding their food and posed by the same playerPose as yours, from what the
+ * network says they're doing: walking pace, eating at a Food Court or after a click,
+ * jumping - and rolling down the track, curled up in a ball.
  */
 function RemoteAvatar({ sessionId, look }) {
   const groupRef = useRef(null)
   const handRef = useRef(null)
   const heldRef = useRef(null)
+  const rollRef = useRef(null)
+  const ballRef = useRef(null)
   const lastY = useRef(null)
-  const dumbbell = useMemo(() => createHeldDumbbell(), [])
-  const motionRef = useRef({ time: 0, speed: 0, grounded: true, maxSpeed: MAX_SPEED, vy: 0, stride: 0, pushing: false, effort: 0, curl: 0, training: false })
+  const food = useMemo(() => createHeldFood(), [])
+  const motionRef = useRef({ time: 0, speed: 0, grounded: true, maxSpeed: MAX_SPEED, vy: 0, stride: 0, rolling: false, curl: 0, training: false, bulk: -1 })
 
-  useEffect(() => () => disposeDumbbellMesh(dumbbell), [dumbbell])
+  useEffect(() => () => disposeHeldFood(food), [food])
 
   useFrame((state, rawDelta) => {
     const group = groupRef.current
@@ -51,54 +56,40 @@ function RemoteAvatar({ sessionId, look }) {
     stepRemotePushers(remotePlayers, state.clock.elapsedTime, delta)
     const m = motionRef.current
     const far = state.camera.position.distanceTo(group.position)
-    m.poseEvery = far > POSE_QUARTER ? 4 : far > POSE_HALF ? 2 : 1
+    // Past the preset's avatar distance: not drawn, and hardly posed (it's still placed,
+    // so it pops back in the right spot and pose).
+    const hidden = far > getQuality().remoteAvatarDistance
+    m.poseEvery = hidden ? 16 : far > POSE_QUARTER ? 4 : far > POSE_HALF ? 2 : 1
     m.time += delta
-    growBody(m, bulkFor(r.muscle), delta)
+    growBody(m, bulkFor(r.fat), delta)
     const held = heldRef.current
-    held?.setDumbbell(r.dumbbellId)
+    held?.setFood?.(r.foodId)
+    group.scale.setScalar(1 + FAT_SCALE * Math.min(1, m.bulk))
 
-    // Walking about a SAFEZONE, up the mountain.
-    if (r.pushing && r.pushPhase === 'free') {
-      group.visible = true
-      group.position.copy(r.shownAt)
-      group.quaternion.setFromAxisAngle(_up, r.climbYaw)
-      if (held) held.visible = true
-      m.pushing = false
-      m.speed = r.climbSpeed
-      m.maxSpeed = MAX_SPEED
-      m.grounded = true
-      m.training = false
-      const sinceLift = performance.now() - r.liftedAt
-      m.curl = sinceLift < CURL_MS ? sinceLift / CURL_MS : 0
-      m.stride += delta * (5 + 6 * Math.min(1, r.climbSpeed / MAX_SPEED))
-      m.emoteClip = null
-      lastY.current = null
-      return
-    }
-
-    // Pushing: behind their boulder, up the track.
+    // Rolling down the track, curled up in a ball.
     if (r.pushing) {
-      group.visible = true
+      group.visible = !hidden
       group.position.copy(r.shownAt)
-      group.quaternion.setFromAxisAngle(_up, UPHILL_YAW)
+      group.quaternion.setFromAxisAngle(_up, DOWNHILL_YAW)
+      if (rollRef.current) rollRef.current.rotation.x = r.roll
+      if (ballRef.current) ballRef.current.position.y = -(BALL_MIDDLE[0] + (BALL_MIDDLE[1] - BALL_MIDDLE[0]) * m.bulk)
       if (held) held.visible = false
-      m.pushing = true
+      m.rolling = true
       m.speed = r.pushSpeed
-      m.maxSpeed = 6.5
-      m.effort = r.pushSpeed > 0.2 ? 1 : 0.4
       m.grounded = true
       m.training = false
       m.curl = 0
-      m.stride += delta * (4 + 5 * Math.min(1, Math.abs(r.pushSpeed) / 6.5))
       m.emoteClip = null
       lastY.current = null
       return
     }
-    m.pushing = false
+    m.rolling = false
+    if (rollRef.current) rollRef.current.rotation.x = 0
+    if (ballRef.current) ballRef.current.position.y = 0
     if (held) held.visible = true
 
-    // Mid-push but we never saw it start (we joined late): not drawn at the bottom.
-    group.visible = r.anim !== 'push'
+    // Mid-roll but we never saw it start (we joined late): not drawn at the top.
+    group.visible = !hidden && r.anim !== 'push'
     group.position.copy(r.position)
     group.quaternion.setFromAxisAngle(_up, r.yaw)
 
@@ -108,8 +99,8 @@ function RemoteAvatar({ sessionId, look }) {
     m.training = r.anim === 'train'
     m.sitting = m.training
     m.dance = r.anim === 'dance' ? 1 : 0
-    const sinceLift = performance.now() - r.liftedAt
-    m.curl = sinceLift < CURL_MS ? sinceLift / CURL_MS : 0
+    const sinceBite = performance.now() - r.ateAt
+    m.curl = sinceBite < CURL_MS ? sinceBite / CURL_MS : 0
     // Vertical speed from the interpolated height, smoothed: rising vs falling.
     const y = r.position.y
     if (lastY.current !== null) m.vy += ((y - lastY.current) / Math.max(delta, 1e-3) - m.vy) * 0.3
@@ -121,9 +112,13 @@ function RemoteAvatar({ sessionId, look }) {
 
   return (
     <group ref={groupRef}>
-      <BloxityAvatar equipped={look?.equipped} proportions={look?.proportions} motionRef={motionRef} handRef={handRef} targetHeight={1.8} />
-      <group ref={handRef}>
-        <primitive ref={heldRef} object={dumbbell} />
+      <group ref={rollRef}>
+        <group ref={ballRef}>
+          <BloxityAvatar equipped={look?.equipped} proportions={look?.proportions} motionRef={motionRef} handRef={handRef} targetHeight={1.8} />
+          <group ref={handRef}>
+            <primitive ref={heldRef} object={food} />
+          </group>
+        </group>
       </group>
     </group>
   )
@@ -131,7 +126,7 @@ function RemoteAvatar({ sessionId, look }) {
 
 /**
  * Every other player as their real Bloxity avatar, dressed as they are - standing,
- * walking, training or pushing, however far away (the far ones just posed less often).
+ * walking, eating or rolling, however far away (the far ones just posed less often).
  * Each shows once it's dressed; until then, nothing - never a stand-in. Checked twice a
  * second, never per frame, so React only re-renders when the set of players (or an
  * outfit) actually changes.

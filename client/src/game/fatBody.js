@@ -1,27 +1,34 @@
 import { BoxGeometry, BufferAttribute, BufferGeometry } from 'three'
 
 /**
- * The game's own body, as in the reference: smooth, rounded arms, legs and torso in
- * place of the avatar's boxes - skinny for a new player, a bodybuilder in the end.
+ * The game's own body: smooth, rounded arms, legs and torso in place of the avatar's
+ * boxes - skinny when you've eaten nothing, and as round as a beach ball when you're
+ * stuffed.
  *
  * Each part is built from its box in player.glb: every face becomes a grid, and every
  * grid point is pushed out from the box onto a rounded tube whose radius changes along
- * the part (hand to shoulder, foot to hip, waist to chest), with domed ends. The grid
+ * the part (hand to shoulder, foot to hip, hips to neck), with domed ends. The grid
  * keeps the box face's texture mapping, so the avatar's clothes and skin land where
- * they always did. It's built twice - skinny and bodybuilder - and the bodybuilder is a
- * morph target: how built someone is (playerPose.bulkFor) is one morph influence, done
- * on the GPU, with no geometry work as they level up.
+ * they always did. It's built twice - skinny and fat - and the fat one is a morph
+ * target: how fat someone is (playerPose.bulkFor) is one morph influence, done on the
+ * GPU, with no geometry work as they eat or burn it off.
  *
  * Profiles are keyframes up the part, from its bottom (t 0) to its top (t 1):
  * [t, half-width, half-depth, out (away from the body's middle), forward], in the
  * rig's bind-pose units (the whole avatar is 6.4 tall, its parts' boxes 2.4).
+ *
+ * The fat build is funny fat, too: `creases` [t, depth, width, front] pinch it in round
+ * the part - the rolls of belly between them bulge out by contrast, a chubby wrist and
+ * knee - with `front` 1 only round the front and sides (a smooth back), 0 all the way
+ * round; `handles` [t, width, amount] push love handles out of both sides. They grow in
+ * with the morph, like the rest of the fat.
  */
 
 const SHAPES = {
   torso: {
     bones: 1,
-    around: [6, 4],
-    along: 10,
+    around: [8, 6],
+    along: 28,
     skinny: {
       keys: [
         [0, 0.72, 0.42, 0, 0],
@@ -34,24 +41,33 @@ const SHAPES = {
       top: 0.12,
       bottom: 0.08,
     },
-    // A V: a narrow waist and stomach under a broad chest that juts forward, and traps.
-    buff: {
+    // A big round belly, upright: a huge tummy sticking far out in front and hanging
+    // over the belt, wide hips, a round back, soft shoulders sloping into the neck.
+    fat: {
       keys: [
-        [0, 1.05, 0.72, 0, 0],
-        [0.22, 1.08, 0.8, 0, 0.06],
-        [0.45, 1.25, 0.86, 0, 0.08],
-        [0.7, 1.7, 1.05, 0, 0.14],
-        [0.88, 1.85, 1.05, 0, 0.1],
-        [1, 1.35, 0.85, 0, 0.02],
+        [0, 1.75, 1.6, 0, 0.45],
+        [0.15, 2.15, 2.1, 0, 0.95],
+        [0.35, 2.3, 2.35, 0, 1.15],
+        [0.58, 2.15, 2.0, 0, 0.8],
+        [0.8, 1.9, 1.45, 0, 0.35],
+        [0.94, 1.72, 1.1, 0, 0.08],
+        [1, 1.3, 0.85, 0, 0],
       ],
-      top: 0.4,
-      bottom: 0.15,
+      top: 0.35,
+      bottom: 1.0,
+      // The belly hanging over the belt (a deep crease under it), a soft roll above, round
+      // the front and sides only (the back stays smooth); a little love handle each side.
+      creases: [
+        [0.1, 0.17, 0.05, 1],
+        [0.44, 0.07, 0.055, 1],
+      ],
+      handles: [[0.22, 0.09, 0.08]],
     },
   },
   arm: {
     bones: 2,
     around: [3, 3],
-    along: 14,
+    along: 20,
     // Hand, wrist, forearm, elbow, upper arm, shoulder.
     skinny: {
       keys: [
@@ -66,25 +82,30 @@ const SHAPES = {
       top: 0.14,
       bottom: 0.12,
     },
-    // Big fists, huge forearms, biceps bulging forward and a round ball of a deltoid.
-    buff: {
+    // Chubby hands and soft sausage arms, plumpest at the top.
+    fat: {
       keys: [
-        [0, 0.72, 0.78, 0, 0.04],
-        [0.1, 0.62, 0.66, 0, 0],
-        [0.3, 0.95, 0.92, 0.04, 0.02],
-        [0.5, 0.8, 0.82, 0, 0],
-        [0.68, 1.08, 1.12, 0.02, 0.12],
-        [0.86, 1.3, 1.25, 0.08, 0.02],
-        [1, 1.05, 1.02, 0.05, 0],
+        [0, 0.5, 0.55, 0, 0.02],
+        [0.1, 0.46, 0.5, 0, 0],
+        [0.3, 0.66, 0.68, 0, 0],
+        [0.5, 0.7, 0.72, 0, 0],
+        [0.72, 0.8, 0.82, 0.02, 0],
+        [0.9, 0.84, 0.84, 0.04, 0],
+        [1, 0.66, 0.66, 0.04, 0],
       ],
-      top: 0.45,
-      bottom: 0.3,
+      top: 0.3,
+      bottom: 0.26,
+      // A baby-fat wrist and elbow.
+      creases: [
+        [0.15, 0.16, 0.04, 0],
+        [0.5, 0.1, 0.04, 0],
+      ],
     },
   },
   leg: {
     bones: 2,
     around: [3, 3],
-    along: 12,
+    along: 18,
     // Foot, ankle, calf, knee, thigh, hip.
     skinny: {
       keys: [
@@ -98,18 +119,23 @@ const SHAPES = {
       top: 0.1,
       bottom: 0,
     },
-    // Calves bulging back, big quads forward.
-    buff: {
+    // Chunky calves and big round thighs.
+    fat: {
       keys: [
-        [0, 0.55, 0.66, 0, 0.14],
-        [0.08, 0.45, 0.5, 0, 0.03],
-        [0.3, 0.64, 0.7, 0, -0.08],
-        [0.5, 0.52, 0.56, 0, 0],
-        [0.76, 0.76, 0.84, 0.02, 0.06],
-        [1, 0.75, 0.74, 0, 0],
+        [0, 0.55, 0.65, 0, 0.12],
+        [0.08, 0.55, 0.6, 0, 0.02],
+        [0.3, 0.8, 0.84, 0, -0.02],
+        [0.5, 0.86, 0.9, 0, 0],
+        [0.76, 1.0, 1.04, 0.03, 0.05],
+        [1, 1.02, 1.02, 0, 0],
       ],
       top: 0.15,
       bottom: 0,
+      // Chubby ankles and knees.
+      creases: [
+        [0.13, 0.14, 0.04, 0],
+        [0.5, 0.08, 0.045, 0],
+      ],
     },
   },
 }
@@ -122,14 +148,14 @@ const PARTS = {
   leg_L: { shape: 'leg', side: 1, bones: ['LegL1', 'LegL2'] },
   leg_R: { shape: 'leg', side: -1, bones: ['LegR1', 'LegR2'] },
 }
-export const MUSCLE_SLOTS = Object.keys(PARTS)
+export const FAT_SLOTS = Object.keys(PARTS)
 
 /**
  * How far the arms' roots (shoulders) and legs' (hips) move out from the avatar's own,
- * so the limbs stay at the sides of the body however broad it is, and how tall it
- * stands: [skinny, bodybuilder], blended like the morph.
+ * so the limbs stay at the sides of the body however round it is, and how tall it
+ * stands: [skinny, fat], blended like the morph.
  */
-export const BODY_OFFSETS = { shoulder: [-0.84, 0.55], hip: [-0.32, 0.05], tall: [0.95, 1.12] }
+export const BODY_OFFSETS = { shoulder: [-0.84, 0.45], hip: [-0.32, 0.5], tall: [0.95, 1.06] }
 
 /**
  * How much of each box face's texture the rounded part shows, from the face's middle:
@@ -148,6 +174,27 @@ function profile(keys, t, c) {
   const e = keys[Math.min(keys.length - 1, i + 2)][c]
   const u = Math.min(1, Math.max(0, (t - keys[i][0]) / (keys[i + 1][0] - keys[i][0])))
   return b + 0.5 * u * (d - a + u * (2 * a - 5 * b + 4 * d - e + u * (3 * (b - d) + e - a)))
+}
+
+/**
+ * A build's rolls and love handles (see SHAPES) at height `t` up the part, angle `theta`
+ * round it (+z the front): how much to scale its half-width and half-depth there, into
+ * `out` [x, z].
+ */
+function rollsAt(build, t, theta, out) {
+  const c = Math.cos(theta)
+  // How much a front-biased crease shows here: all of it on the belly, most of it at the
+  // sides, none on the back.
+  const front = Math.min(1, 1.2 * Math.max(0, Math.sin(theta)) + 0.6 * c * c)
+  let k = 1
+  for (const [at, depth, width, bias] of build.creases ?? []) {
+    k -= depth * (1 + (front - 1) * bias) * Math.exp(-(((t - at) / width) ** 2))
+  }
+  let handles = 0
+  for (const [at, width, amount] of build.handles ?? []) handles += amount * Math.exp(-(((t - at) / width) ** 2))
+  out[0] = k * (1 + handles * c * c)
+  out[1] = k
+  return out
 }
 
 const smoothstep = (a, b, x) => {
@@ -222,11 +269,11 @@ const built = new Map()
 
 /**
  * Body part `slot` (a key of PARTS) for its box geometry `source`: a smooth,
- * non-indexed, skinned geometry - skinny, with the bodybuilder as its one (relative)
+ * non-indexed, skinned geometry - skinny, with the fat body as its one (relative)
  * morph target - in the same space as the box. `boneIndex(name)` gives a bone's skin
  * index. Shared: clone it to keep it. Returns null for a slot that isn't a body part.
  */
-export function buildMusclePart(slot, source, boneIndex) {
+export function buildFatPart(slot, source, boneIndex) {
   const part = PARTS[slot]
   if (!part) return null
   source.computeBoundingBox()
@@ -248,13 +295,14 @@ function buildPart(part, source, bones) {
   const y1 = max.y
   const maps = faceMaps(source)
 
-  const builds = [shape.skinny, shape.buff]
+  const builds = [shape.skinny, shape.fat]
   const positions = [[], []]
   const uvs = []
   const skinIndex = []
   const skinWeight = []
   const index = []
   const p = { x: 0, y: 0, z: 0 }
+  const roll = [1, 1]
 
   FACES.forEach((face, f) => {
     // Grid resolution: across the face (its in-plane a axis) and along b.
@@ -283,8 +331,9 @@ function buildPart(part, source, bones) {
         const t = Math.min(1, Math.max(0, (p.y - y0) / (y1 - y0)))
         const cap = face.axis === 'y' ? face.dir : 0
         builds.forEach((build, k) => {
-          const rx = profile(build.keys, t, 1)
-          const rz = profile(build.keys, t, 2)
+          rollsAt(build, t, theta, roll)
+          const rx = profile(build.keys, t, 1) * roll[0]
+          const rz = profile(build.keys, t, 2) * roll[1]
           const dome = cap > 0 ? build.top : cap < 0 ? -build.bottom : 0
           positions[k].push(
             cx + part.side * profile(build.keys, t, 3) + rho * rx * Math.cos(theta),
@@ -313,7 +362,7 @@ function buildPart(part, source, bones) {
   })
 
   const skinny = smoothGeometry(positions[0], index)
-  const buff = smoothGeometry(positions[1], index)
+  const fat = smoothGeometry(positions[1], index)
   const count = positions[0].length / 3
   const geometry = new BufferGeometry()
   geometry.setIndex(index)
@@ -326,7 +375,7 @@ function buildPart(part, source, bones) {
   const dn = new Float32Array(count * 3)
   for (let i = 0; i < count * 3; i += 1) {
     dp[i] = positions[1][i] - positions[0][i]
-    dn[i] = buff[i] - skinny[i]
+    dn[i] = fat[i] - skinny[i]
   }
   geometry.morphAttributes.position = [new BufferAttribute(dp, 3)]
   geometry.morphAttributes.normal = [new BufferAttribute(dn, 3)]
@@ -391,12 +440,12 @@ const AVATAR_BOXES = {
   leg_L: [1.4, 2.4, 1.6, 0.7, 1.2],
   leg_R: [1.4, 2.4, 1.6, -0.7, 1.2],
 }
-/** The double-biceps flex: upper arms turned out just above level, forearms on up past upright. */
+/** The double-biceps flex (a big round statue showing off): upper arms out just above level, forearms up. */
 const FLEX_UPPER = 1.66
 const FLEX_FORE = 1.75
 
 /**
- * A full bodybuilder in the double-biceps flex - upper arms out to the sides, forearms
+ * A full fat body in the double-biceps flex - upper arms out to the sides, forearms
  * up, fists by the head - for statues: each body part (keyed as PARTS) as a plain
  * geometry, position and normal, in avatar units with its feet at y 0, facing +z. The
  * same shapes as the players' bodies, posed as the skeleton would pose them: each arm
@@ -407,13 +456,13 @@ export function flexingBodybuilder() {
   for (const [slot, [w, h, d, x, y]] of Object.entries(AVATAR_BOXES)) {
     const box = new BoxGeometry(w, h, d).translate(x, y, 0)
     // Top bones (Spine1, ArmL1 ...) are skin index 0, the lower ones 1.
-    parts[slot] = posed(PARTS[slot], buildMusclePart(slot, box, (name) => (name.endsWith('1') ? 0 : 1)), x, y + h / 2)
+    parts[slot] = posed(PARTS[slot], buildFatPart(slot, box, (name) => (name.endsWith('1') ? 0 : 1)), x, y + h / 2)
     box.dispose()
   }
   return parts
 }
 
-/** `source`'s bodybuilder shape, its arms flexed about the shoulder at (x, top). */
+/** `source`'s fat shape, its arms flexed about the shoulder at (x, top). */
 function posed(part, source, x, top) {
   const pos = source.getAttribute('position')
   const normal = source.getAttribute('normal')

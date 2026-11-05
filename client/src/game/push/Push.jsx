@@ -2,7 +2,6 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import { BufferAttribute, BufferGeometry, Color, Points, PointsMaterial, Vector3 } from 'three'
 
-import { WIN_PAD } from '@shared/balance'
 import { formatNumber } from '@shared/format'
 import { mulberry32 } from '@shared/rng'
 
@@ -12,14 +11,13 @@ import { LabelBatch } from '../labels/LabelBatch'
 import { sharedMaterials } from '../materials'
 import { FOG, SKY } from '../sceneStyle'
 import { skyUniforms } from '../skyState'
-import { safeStart, STAGES, stageAt, stageStart, TRACK_LENGTH, WIN_PADS, WORLD } from './course'
-import { boulderRadius, surfaceY, zAt } from './path'
-import PadTrophies from './PadTrophies'
+import { STAGES, stageAt, stageStart, TAPES, TRACK_LENGTH, WORLD } from './course'
+import { surfaceY, zAt } from './path'
 import PushFX from './PushFX'
 import { push } from './pushControl'
 import { STAGE_THEMES, WORLD_SKIES } from './themes'
 import { buildChunk, CHUNK, chunkCount, SUMMIT_LENGTH } from './track'
-import WinsOrbs from './WinsOrbs'
+import Tapes from './Tapes'
 
 /** Chunks kept behind the focus point, and how many may be built per builder pass. */
 const BEHIND = 50
@@ -53,10 +51,10 @@ const showIfWanted = (mesh, i) => {
 }
 
 /**
- * Lazily loaded: the track up the mountain of the world you're in, its signs, and the
- * sky changing stage by stage while you push (and the lobby's, world by world). While
- * nobody is pushing it still streams the first stretch, which is the track you see
- * climbing away from the lobby. Mounted afresh for each world (see GameScene).
+ * Lazily loaded: the tape track down the valley of the world you're in, its tapes and
+ * signs, and the sky changing stage by stage while you roll (and the lobby's, world by
+ * world). While nobody is rolling it still streams the first stretch, which is the track
+ * you see dropping away from the lobby. Mounted afresh for each world (see GameScene).
  */
 export default function Push() {
   const camera = useThree((s) => s.camera)
@@ -101,7 +99,7 @@ export default function Push() {
   }, [])
 
   // This module loads after the lobby is on screen; compile its shaders in the
-  // background before showing it, so the first push doesn't stall on them.
+  // background before showing it, so the first roll doesn't stall on them.
   useEffect(() => {
     const root = rootRef.current
     // Skipped in dev, where StrictMode's remount disposes materials mid-compile (see
@@ -119,39 +117,29 @@ export default function Push() {
     }
   }, [gl, camera, scene])
 
-  // As in the reference: a big SAFEZONE floating over each SAFEZONE, the next boulder's
-  // name over it where it waits (the first stage's is the lobby's), the WINS over each
-  // pad, and THE TOP: their own small label batch.
+  // Over every tape, what it takes and what it pays: its number, the Fat you need to get
+  // there (from the start: every slope before it burns its share), and its Coins. And
+  // the finish. Their own small label batch.
   useEffect(() => {
     const batch = new LabelBatch({ pageSize: Math.min(512, getQuality().maxTexture) })
-    STAGES.forEach((stage, i) => {
-      if (i === 0) return
-      // Over the way in, so it's behind you once you're in (and never over the signs inside).
-      const entrance = zAt(safeStart(i) + 1)
-      batch.add(`safe-${stage.id}`, [0, surfaceY(entrance, 0) + 5.6, entrance], { lines: [{ text: 'SAFEZONE', size: 64, fill: '#ffffff' }], pxPerUnit: 62 }, { fade: 260, near: 16 })
+    const gold = ['#fffaa8', '#ffd52a', '#ff9c00']
+    for (const tape of TAPES) {
+      const stage = STAGES[tape.stage]
+      const last = tape.stage === STAGES.length - 1
+      // The Fat it takes, big, with a drumstick - and what it pays.
       const lines = [
-        { text: stage.boulder, size: 50, gradient: STAGE_THEMES[stage.id].name },
-        { text: `${formatNumber(stage.need)} Recommended`, size: 40, icon: 'muscle', gradient: ['#fffaa8', '#ffd52a', '#ff9c00'] },
+        { text: formatNumber(tape.need), size: 76, icon: 'fat', gradient: last ? gold : STAGE_THEMES[stage.id].name },
+        { text: `+${formatNumber(tape.coins)}`, size: 40, icon: 'coin', fill: '#ffffff' },
       ]
-      const z = zAt(stageStart(i) - 0.5)
-      // Just over the boulder: in view from the SAFEZONE, clear of the HUD above.
-      batch.add(`stage-${stage.id}`, [0, surfaceY(z, 0) + boulderRadius(i) * 2 + 1.2, z], { lines, pxPerUnit: 64 }, { fade: 200 })
-    })
-    for (const pad of WIN_PADS) {
-      if (pad.stage === STAGES.length - 1) continue
-      const z = zAt(safeStart(pad.stage + 1) + (WIN_PAD.from + WIN_PAD.to) / 2)
-      const lines = [
-        { text: 'WINS', size: 56, gradient: ['#fffaa8', '#ffd52a', '#ff9c00'] },
-        { text: `+${formatNumber(pad.wins)}`, size: 64, icon: 'trophy', fill: '#ffffff' },
-      ]
-      // Over its pad and the trophy spinning there, under the next boulder's sign beyond.
-      batch.add(`wins-${pad.stage}`, [(WIN_PAD.minX + WIN_PAD.maxX) / 2, surfaceY(z, 0) + 2.75, z], { lines, pxPerUnit: 86 }, { fade: 160 })
+      // Just short of the tape, floating over the wall: in view as you roll down at it.
+      const z = zAt(tape.meter - 0.6)
+      batch.add(`tape-${tape.stage}`, [0, surfaceY(z, 0) + 4.6, z], { lines, pxPerUnit: 60 }, { fade: 220 })
     }
     const top = zAt(TRACK_LENGTH + SUMMIT_LENGTH * 0.62)
     batch.add(
       'the-top',
       [0, surfaceY(top, 0) + 15, top],
-      { lines: [{ text: 'THE TOP!', size: 80, gradient: ['#fffaa8', '#ffd52a', '#ff9c00'] }, { text: 'You are the STRONGEST!', size: 40, rainbow: true }], pxPerUnit: 22 },
+      { lines: [{ text: 'THE END!', size: 80, gradient: gold }, { text: 'The BIGGEST belly of them all!', size: 40, rainbow: true }], pxPerUnit: 22 },
       { fade: 260 },
     )
     let cancelled = false
@@ -259,8 +247,7 @@ export default function Push() {
       <group ref={labelsRef} />
       <primitive ref={starsRef} object={assets.stars} />
       <PushFX />
-      <PadTrophies />
-      <WinsOrbs />
+      <Tapes />
     </group>
   )
 }

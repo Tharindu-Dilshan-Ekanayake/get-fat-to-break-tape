@@ -11,7 +11,6 @@
  * `lift` raises (or, to keep bent legs on the ground, lowers) the body, in metres.
  */
 
-import { LEVEL_FIRST, LEVEL_GROWTH } from '@shared/balance'
 
 export const POSED_BONES = [
   'Spine1',
@@ -26,46 +25,61 @@ export const POSED_BONES = [
   'LegR2',
 ]
 
-/** The level at which a body is fully built: a bodybuilder. */
-const FULL_BUILD_LEVEL = 25
+/** The Fat at which a body is as round as it gets. */
+const FULL_FAT = 200000
 
 /**
- * How built someone is for their Muscle (their power), 0 (as skinny as can be: level
- * 1) to 1 (a bodybuilder, at FULL_BUILD_LEVEL): an even step for every level their
- * Muscle is worth, so a level 5 and a level 17 look nothing alike - and fractions of a
- * level too, so it grows a little with every click. The level isn't capped, so Muscle
- * past the rebirth cap keeps building you; a rebirth, which takes your Muscle back to
- * 0, makes you skinny again.
+ * How fat someone looks for the Fat they carry, 0 (skinny: nothing eaten since the last
+ * roll) to 1 (as round as a ball, at FULL_FAT): on a log scale, eased so the first few
+ * bites already show - a dozen cookies give you a tummy, a few hundred Fat a proper
+ * belly - and it keeps growing a little with every bite. A roll burns the Fat off, so
+ * you shrink all the way down the track, and come back skinny.
  */
-export function bulkFor(muscle = 0) {
-  // muscleForLevel turned round: Muscle m is worth level 1 + log(1 + m(G-1)/F) / log G.
-  const level = 1 + Math.log(1 + (Math.max(0, muscle) * (LEVEL_GROWTH - 1)) / LEVEL_FIRST) / Math.log(LEVEL_GROWTH)
-  return Math.min(1, (level - 1) / (FULL_BUILD_LEVEL - 1))
-}
-
-/** How fast a body grows into (or out of) its build, per second: it eases, never jumps. */
-const GROW_RATE = 3
-
-/** Eases `motion.bulk` towards `target`; a body with no build yet (-1) takes it at once. */
-export function growBody(motion, target, delta) {
-  if (!(motion.bulk >= 0)) motion.bulk = target
-  else motion.bulk += (target - motion.bulk) * (1 - Math.exp(-GROW_RATE * delta))
+export function bulkFor(fat = 0) {
+  const t = Math.log(1 + Math.max(0, fat) / 6) / Math.log(1 + FULL_FAT / 6)
+  return Math.min(1, Math.pow(Math.max(0, t), 0.72))
 }
 
 /**
- * How a blocky stand-in's parts are built against its own, skinny (bulk 0) and
- * bodybuilder (1): the chest's width and torso's depth, the arms' and the legs' width
- * and depth. (The real avatar's body is muscleBody's.)
+ * How much bigger all over a fat body is drawn, on top of its rounder shape (1 + this,
+ * as fat as can be). Shared by your character and everyone else's.
+ */
+export const FAT_SCALE = 0.6
+
+/**
+ * A body grows into its size on a spring, not an ease: a bite's worth of Fat lands and
+ * the belly pops out a touch past it, then settles - it bounces bigger. Stiffness and
+ * damping (per second): a quick pop with one soft overshoot.
+ */
+const GROW_STIFFNESS = 70
+const GROW_DAMPING = 10
+
+/** Springs `motion.bulk` towards `target`; a body with no size yet (-1) takes it at once. */
+export function growBody(motion, target, delta) {
+  if (!(motion.bulk >= 0)) {
+    motion.bulk = target
+    motion.bulkVel = 0
+    return
+  }
+  const vel = (motion.bulkVel ?? 0) + ((target - motion.bulk) * GROW_STIFFNESS - (motion.bulkVel ?? 0) * GROW_DAMPING) * delta
+  motion.bulkVel = vel
+  motion.bulk = Math.max(0, motion.bulk + vel * delta)
+}
+
+/**
+ * How a blocky stand-in's parts are built against its own, skinny (bulk 0) and fat (1):
+ * the torso's width and depth, the arms' and the legs' width and depth. (The real
+ * avatar's body is fatBody's.)
  */
 const SKINNY = { chestX: 0.6, torsoZ: 0.7, armX: 0.5, armZ: 0.6, legX: 0.66, legZ: 0.72 }
-const BUFF = { chestX: 1.85, torsoZ: 1.35, armX: 1.95, armZ: 1.6, legX: 1.2, legZ: 1.2 }
+const FAT = { chestX: 2.3, torsoZ: 3.2, armX: 1.5, armZ: 1.4, legX: 1.35, legZ: 1.3 }
 const BUILD_KEYS = Object.keys(SKINNY)
 const build = { ...SKINNY }
 
 /** The build (see SKINNY) of a body of `bulk`: one shared result, to use at once. */
 export function bodyBuild(bulk = 0.5) {
   const t = Math.min(1, Math.max(0, bulk))
-  for (const key of BUILD_KEYS) build[key] = SKINNY[key] + (BUFF[key] - SKINNY[key]) * t
+  for (const key of BUILD_KEYS) build[key] = SKINNY[key] + (FAT[key] - SKINNY[key]) * t
   return build
 }
 
@@ -73,7 +87,7 @@ export function bodyBuild(bulk = 0.5) {
  * A classic blocky figure's part of `kind` ('torso', 'arm' or 'leg'; anything else is
  * left be), on `side` (+1 left, -1 right), built as `b`: writes its width and depth
  * multipliers and its middle's x, in studs, into `out` as (x, y, z). Arms and legs stay
- * at the body's sides however broad it gets.
+ * at the body's sides however round it gets.
  */
 export function blockyPart(kind, side, b, out) {
   if (kind === 'torso') return out.set(b.chestX, b.torsoZ, 0)
@@ -147,10 +161,16 @@ function grooving(time, w) {
  * Walk to sprint: arms and legs swing against each other, the body leans in and bobs
  * once per step. `phase` advances faster with speed, so the steps quicken.
  */
-function stride(phase, ratio) {
+function stride(phase, ratio, bulk = 0) {
   const cycle = Math.sin(phase)
-  const leg = 0.85 * ratio
-  const arm = 0.75 * ratio
+  // Fat legs swing less far, the arms barely (they're resting on the belly), and the
+  // whole body rocks from foot to foot: a waddle.
+  const leg = (0.85 - 0.35 * bulk) * ratio
+  const arm = (0.75 - 0.45 * bulk) * ratio
+  add('Spine1', 0, cycle * 0.16 * bulk * ratio, 0, 1)
+  add('Neck1', 0, -cycle * 0.1 * bulk * ratio, 0, 1)
+  add('LegL1', 0, 0.1 * OUT_L * bulk * ratio, 0, 1)
+  add('LegR1', 0, 0.1 * OUT_R * bulk * ratio, 0, 1)
   add('LegL1', cycle * leg, 0, 0, 1)
   add('LegR1', -cycle * leg, 0, 0, 1)
   // Knees fold on the back swing only.
@@ -182,53 +202,119 @@ function airborne(vy) {
 }
 
 /**
- * Pushing a boulder: both arms up and forward with the palms on the rock, leaning into
- * it, legs driving (striding with the speed). `effort` (0-1) is how hard you're
- * pushing; `strain` (0-1) is how close a boulder that's too heavy is to crushing you -
- * the stance digs in and the whole body trembles.
+ * Curled up into a ball to roll: knees hugged to the chest, chin tucked, back rounded -
+ * the whole body then turns about its middle (see Player). `w` blends it in.
  */
-function pushing(time, phase, speed, maxSpeed, effort, strain) {
-  const ratio = clamp01(Math.abs(speed) / Math.max(maxSpeed, 0.001))
-  const shake = Math.sin(time * 41) * 0.06 * strain
-  const lean = 0.18 + 0.32 * effort + 0.15 * strain
-  add('Spine1', -lean + shake, 0, 0, 1)
-  add('Neck1', 0.3 + 0.1 * strain, 0, 0, 1)
-  for (const [name, out] of [
-    ['ArmL1', OUT_L],
-    ['ArmR1', OUT_R],
-  ]) {
-    add(name, -2.0 - 0.15 * effort + shake, -0.12 * out, 0, 1)
-  }
-  add('ArmL2', -0.45 + 0.2 * effort, 0, 0, 1)
-  add('ArmR2', -0.45 + 0.2 * effort, 0, 0, 1)
-  // Legs: a short driving stride while moving, a dug-in lunge while straining.
-  const cycle = Math.sin(phase)
-  const leg = 0.7 * ratio * (1 - strain)
-  add('LegL1', cycle * leg - 0.5 * strain, 0.06 * OUT_L, 0, 1)
-  add('LegR1', -cycle * leg + 0.55 * strain, 0.06 * OUT_R, 0, 1)
-  add('LegL2', Math.max(0, -cycle) * 1.0 * ratio + 0.8 * strain, 0, 0, 1)
-  add('LegR2', Math.max(0, cycle) * 1.0 * ratio + 0.15 * strain, 0, 0, 1)
-  pose.lift += (Math.abs(Math.cos(phase)) * 0.04 - 0.02) * ratio - 0.12 * strain
+function tucked(w) {
+  add('Spine1', -0.55, 0, 0, w)
+  add('Neck1', 0.45, 0, 0, w)
+  add('LegL1', -2.2, 0.12 * OUT_L, 0, w)
+  add('LegR1', -2.2, 0.12 * OUT_R, 0, w)
+  add('LegL2', 2.3, 0, 0, w)
+  add('LegR2', 2.3, 0, 0, w)
+  add('ArmL1', -1.25, -0.1 * OUT_L, 0, w)
+  add('ArmR1', -1.25, -0.1 * OUT_R, 0, w)
+  add('ArmL2', -1.5, 0, 0, w)
+  add('ArmR2', -1.5, 0, 0, w)
+}
+
+/** How far sitting on the ground lowers the body: hips from standing height to the floor. */
+const FLOOR_DROP = 0.72
+
+/**
+ * Out of Fat at the end of a roll: sat in a heap on the track, legs out, leaning back
+ * on your hands, your head going round and round. `w` blends it in.
+ */
+function dizzy(time, w) {
+  const spin = time * 7
+  add('LegL1', -1.45, 0.25 * OUT_L, 0, w)
+  add('LegR1', -1.45, 0.25 * OUT_R, 0, w)
+  add('LegL2', 0.15, 0, 0, w)
+  add('LegR2', 0.15, 0, 0, w)
+  add('Spine1', 0.3 + Math.sin(spin) * 0.06, Math.cos(spin) * 0.08, 0, w)
+  add('Neck1', Math.sin(spin) * 0.22, Math.cos(spin) * 0.22, 0, w)
+  add('ArmL1', 0.55, 0.35 * OUT_L, 0, w)
+  add('ArmR1', 0.55, 0.35 * OUT_R, 0, w)
+  add('ArmL2', -0.2, 0, 0, w)
+  add('ArmR2', -0.2, 0, 0, w)
+  pose.lift -= FLOOR_DROP * w
+}
+
+/** A bite's parts, as shares of it: hands up to the mouth, the chomping, hands down. */
+const BITE_UP = 0.22
+const BITE_DOWN = 0.8
+const CHOMPS = 3
+
+/**
+ * How hard you're chomping `t` (0-1) through a bite: 0, then three bumps up to 1 - one
+ * a chomp - while the food's at your mouth, then 0 again. The player squashes the food
+ * and crunches on each.
+ */
+export function chewAt(t) {
+  if (!(t > BITE_UP && t < BITE_DOWN)) return 0
+  return Math.max(0, Math.sin(((t - BITE_UP) / (BITE_DOWN - BITE_UP)) * Math.PI * CHOMPS))
 }
 
 /**
- * A dumbbell curl with the right hand, `t` 0-1 through it: the forearm swings the
- * weight up to the shoulder and back down, the body bracing a little.
+ * A bite, `t` 0-1 through it, for a body `bulk` (0-1) fat: both hands bring the food up
+ * in front of your face (elbows out, hands turned in to hold it between them), three big
+ * chomps - the head diving into it, the shoulders hunching, a little bounce on each -
+ * and down again. A very fat body's arms can't reach round to the middle any more, so
+ * the head leans over and chomps it from the side.
  */
-function curling(t, w = 1) {
-  const up = Math.sin(clamp01(t) * Math.PI)
-  add('ArmR1', -0.25 * up, 0.05 * OUT_R, 0, w)
-  add('ArmR2', -2.1 * up, 0, 0, w)
-  add('Spine1', 0.06 * up, 0, 0, w)
-  pose.lift -= 0.02 * up * w
+function eating(t, w = 1, bulk = 0) {
+  const x = clamp01(t)
+  const up = x < BITE_UP ? smooth(0, BITE_UP, x) : x > BITE_DOWN ? 1 - smooth(BITE_DOWN, 1, x) : 1
+  const chew = chewAt(x)
+  const reach = -0.6 - 0.2 * bulk
+  const inward = 0.8 + 0.5 * bulk
+  const turn = 1 + 0.15 * bulk
+  const bend = -1.9 + 0.1 * bulk
+  add('ArmR1', reach * up, -inward * OUT_R * up, turn * up, w)
+  add('ArmR2', bend * up, 0, 0, w)
+  add('ArmL1', reach * up, -inward * OUT_L * up, -turn * up, w)
+  add('ArmL2', bend * up, 0, 0, w)
+  // The head: forward into the food, nodding on each chomp; leaning over to the food
+  // hand's side when the arms are too short to bring it round.
+  const lean = smooth(0.55, 1, bulk) * up
+  add('Neck1', 0.12 * up + 0.24 * chew, 0.35 * OUT_R * lean, 0.45 * lean, w)
+  add('Spine1', -0.05 * up - 0.06 * chew, 0, 0, w)
+  pose.lift += 0.035 * chew * w
+}
+
+/**
+ * Full up after a feed: both hands on the belly, leaning back to stick it out, patting
+ * it - one hand then the other, pat, pat, pat. `t` 0-1 through it; `w` blends it in.
+ */
+function patting(t, w) {
+  const beat = clamp01(t) * Math.PI * 6
+  const left = Math.max(0, Math.sin(beat))
+  const right = Math.max(0, -Math.sin(beat))
+  add('ArmL1', -0.3 - 0.18 * left, -1 * OUT_L, -1, w)
+  add('ArmR1', -0.3 - 0.18 * right, -1 * OUT_R, 1, w)
+  add('ArmL2', -1 - 0.3 * left, 0, 0, w)
+  add('ArmR2', -1 - 0.3 * right, 0, 0, w)
+  add('Spine1', 0.08, 0, 0, w)
+  add('Neck1', -0.14, 0, 0, w)
+}
+
+/**
+ * Fat arms don't hang straight down: they rest out on the belly, and the legs stand a
+ * little apart. Added on top of whatever else the body's doing, by how fat it is.
+ */
+function chubby(bulk, w = 1) {
+  add('ArmL1', 0, 0.3 * OUT_L * bulk, 0, w)
+  add('ArmR1', 0, 0.3 * OUT_R * bulk, 0, w)
+  add('LegL1', 0, 0.06 * OUT_L * bulk, 0, w)
+  add('LegR1', 0, 0.06 * OUT_R * bulk, 0, w)
 }
 
 /** How far sitting lowers the body: from standing hips down to just over a bench seat. */
 const SIT_DROP = 0.26
 
 /**
- * Sat on a bench: thighs out level in front, shins straight down to the floor, sitting
- * up, the left hand resting on its knee (the right one curls).
+ * Sat on a bench at a Food Court table: thighs out level in front, shins straight down
+ * to the floor, sitting up, the left hand resting on its knee (the right one eats).
  */
 function seated(time) {
   const breath = Math.sin(time * 1.8)
@@ -244,15 +330,7 @@ function seated(time) {
   pose.lift -= SIT_DROP
 }
 
-/** Flattened by a boulder: arms and legs splayed out like a starfish. */
-function splat(w) {
-  add('ArmL1', -0.2, 1.3 * OUT_L, 0, w)
-  add('ArmR1', -0.2, 1.3 * OUT_R, 0, w)
-  add('LegL1', 0, 0.5 * OUT_L, 0, w)
-  add('LegR1', 0, 0.5 * OUT_R, 0, w)
-}
-
-/** Arms up and waving, bouncing on the spot: the celebration at the top. */
+/** Arms up and waving, bouncing on the spot: the celebration at the end of the track. */
 function cheering(time, w) {
   const wave = Math.sin(time * 10) * 0.28
   add('ArmL1', -2.7 + wave, 0.38 * OUT_L, 0, w)
@@ -286,19 +364,22 @@ function dancing(time, w) {
   pose.lift += Math.abs(a) * 0.14 * w
 }
 
-/** Seconds per automatic curl in a Train Zone (TRAIN_INTERVAL in balance.js). */
+/** Seconds per automatic bite at a Food Court (TRAIN_INTERVAL in balance.js). */
 const TRAIN_PERIOD = 0.8
+
+/** How far (0-1) through a table bite you are at `time` (seconds): the Food Court loop. */
+export const tableBiteAt = (time) => (time / TRAIN_PERIOD) % 1
 
 /**
  * @param {{ time?: number, speed?: number, maxSpeed?: number, grounded?: boolean,
- *   vy?: number, stride?: number, pushing?: boolean, effort?: number, strain?: number,
- *   crushed?: number, cheer?: number, curl?: number, training?: boolean,
- *   sitting?: boolean, dance?: number }} motion
- *   `pushing` puts the hands on a boulder; `speed` is then the push's speed, `effort`
- *   (0-1) how hard, `strain` (0-1) how close to being crushed, `crushed` (0-1) how
- *   flattened, and `cheer` (0-1) the celebration at the top. Otherwise `curl` (0-1) is a
- *   lift in progress (0 = none), `sitting` sits you on a bench and `training` curls on a
- *   loop, on a Train Zone's bench, and `dance` (0-1) is the win dance.
+ *   vy?: number, stride?: number, rolling?: boolean, tired?: number, cheer?: number,
+ *   curl?: number, training?: boolean, sitting?: boolean, dance?: number, bulk?: number }} motion
+ *   `rolling` curls you up into a ball for the roll down the track (the player turns
+ *   the ball), `tired` (0-1) sits you down in a dizzy heap when the Fat runs out and
+ *   `cheer` (0-1) is the celebration at the end. Otherwise `curl` (0-1) is a bite in
+ *   progress (0 = none), `sitting` sits you on a bench and `training` eats on a loop, at
+ *   a Food Court's table, and `dance` (0-1) is the win dance. `bulk` (0-1, how fat you
+ *   are) rests your arms out on your belly.
  */
 export function computePose(motion) {
   const {
@@ -308,16 +389,20 @@ export function computePose(motion) {
     grounded = true,
     vy = 0,
     stride: phase = time * 5,
-    pushing: onBoulder = false,
-    effort = 0,
-    strain = 0,
-    crushed = 0,
+    rolling = false,
+    tired = 0,
     cheer = 0,
     curl = 0,
     training = false,
     sitting = false,
     dance = 0,
   } = motion
+  const bulk = Math.min(1, Math.max(0, motion.bulk ?? 0))
+  /** 0-1: a happy little hop, arms up (a purchase, a level up, a rebirth). */
+  const happy = Math.min(1, Math.max(0, motion.happy ?? 0))
+  /** 0-1 through a full-belly pat after a feed (0: not patting), and how much of it shows. */
+  const pat = motion.pat ?? 0
+  const patWeight = motion.patWeight ?? 0
   for (const name of POSED_BONES) {
     const b = pose.bones[name]
     b.swing = 0
@@ -326,27 +411,34 @@ export function computePose(motion) {
   }
   pose.lift = 0
 
-  if (onBoulder) {
-    if (crushed > 0) splat(crushed)
-    else if (cheer > 0) {
-      stance(1 - cheer, time)
+  if (rolling) {
+    if (cheer > 0) {
+      tucked(1 - cheer)
+      stance(cheer, time)
       cheering(time, cheer)
-    } else pushing(time, phase, speed, maxSpeed, effort, strain)
+      chubby(bulk, cheer)
+    } else if (tired > 0) {
+      tucked(1 - tired)
+      dizzy(time, tired)
+    } else tucked(1)
     return pose
   }
   if (sitting) {
     seated(time)
   } else if (grounded) {
     const ratio = clamp01(speed / Math.max(maxSpeed, 0.001))
-    const still = (1 - smooth(0.05, 0.4, ratio)) * (1 - dance)
+    const still = (1 - smooth(0.05, 0.4, ratio)) * (1 - dance) * (1 - happy)
     stance(still, time)
     if (still > 0.01) grooving(time, still)
-    if (ratio > 0.02) stride(phase, ratio)
+    if (ratio > 0.02) stride(phase, ratio, bulk)
     if (dance > 0) dancing(time, dance)
+    if (happy > 0) cheering(time, happy)
+    if (patWeight > 0 && curl === 0) patting(pat, patWeight)
   } else {
     airborne(vy)
   }
-  if (training) curling((time / TRAIN_PERIOD) % 1, 1)
-  else if (curl > 0) curling(curl, 1)
+  chubby(bulk)
+  if (training) eating(tableBiteAt(time), 1, bulk)
+  else if (curl > 0) eating(curl, 1, bulk)
   return pose
 }

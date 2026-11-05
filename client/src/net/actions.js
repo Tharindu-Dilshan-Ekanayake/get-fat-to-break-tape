@@ -17,27 +17,26 @@ export function send(type, payload) {
 }
 
 export const actions = {
-  /** One click: a lift with your dumbbell. */
-  lift: () => send('lift'),
+  /** One click: a bite of your food. */
+  eat: () => send('eat'),
   enterZone: (zone) => send('enterZone', { zone }),
   leaveZone: () => send('leaveZone'),
-  /** Starts a push; only counts standing on the PUSH ZONE (walking onto it sends it). */
+  /** Starts a roll down the track; only counts standing on the ROLL ZONE (walking onto it sends it). */
   startPush: () => send('startPush'),
-  /** Where you've got to up the track (a few times a second while pushing). */
+  /** Where you've got to down the track (a few times a second while rolling). */
   pushAt: (meter, x) => send('pushAt', { meter, x }),
+  /** The roll is over: 'blocked' (thrown back by a tape too strong), 'top' (the end of the track) or 'left'. */
   endPush: (reason) => send('endPush', { reason }),
-  /** The boulder rolled into Wins orb `index`. */
-  collectOrb: (index) => send('collectOrb', { index }),
   /** A Boxity emote started ('' when it stops), so the room sees it. */
   emote: (id) => send('emote', { id }),
   /** Back to the spawn point (Boxity's "Reset Character"). */
   respawn: () => send('respawn'),
   rebirth: () => send('rebirth'),
   skipRebirth: () => send('skipRebirth'),
-  buyDumbbell: (id) => send('buyDumbbell', { id }),
-  equipDumbbell: (id) => send('equipDumbbell', { id }),
+  buyFood: (id) => send('buyFood', { id }),
+  equipFood: (id) => send('equipFood', { id }),
   equipAura: (id) => send('equipAura', { id }),
-  /** Buys Muscle pack `index` (0-2) from under the level bar. */
+  /** Buys Fat pack `index` (0-2) from under the level bar. */
   buyPack: (index) => send('buyPack', { index }),
   hatch: (eggId, count = 1) => send('hatch', { eggId, count }),
   openEggItem: (itemId) => send('openEggItem', { itemId }),
@@ -51,6 +50,6 @@ export const actions = {
   claimFreeReward: () => send('claimFreeReward'),
   setSetting: (key, value) => send('setting', { key, value }),
   portal: () => send('portal'),
-  /** Buys a shop item with Wins; see shop.js. */
+  /** Buys a shop item with Coins; see shop.js. */
   purchase: (productId) => send('purchase', { productId }),
 }

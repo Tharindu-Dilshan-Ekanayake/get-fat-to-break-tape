@@ -66,14 +66,14 @@ export function HatchOverlay() {
   }, [hatch, setHatch])
 
   // Auto hatch: order an egg when switched on, and again each time a reveal closes,
-  // for as long as the Wins last.
+  // for as long as the Coins last.
   const autoHatch = useGame((s) => s.autoHatch)
   useEffect(() => {
     if (hatch || !autoHatch) return
     const { zone, profile, setAutoHatch } = getGame()
     const egg = EGGS[zone.egg]
-    if (!egg?.cost.wins) return
-    if (profile.wins < egg.cost.wins) {
+    if (!egg?.cost.coins) return
+    if (profile.coins < egg.cost.coins) {
       setAutoHatch(false)
       return
     }

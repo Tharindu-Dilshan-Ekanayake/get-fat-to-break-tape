@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 
 import App from './App.jsx'
 import { installAudioUnlock, sfx } from './audio/sfx'
+import { installUiSounds } from './audio/uiSounds'
 import BloxityProvider from './bloxity/BloxityProvider.jsx'
 import { installDebugHooks } from './debug'
 import './index.css'
@@ -14,6 +15,7 @@ import './index.css'
 performance.mark('pp:main')
 installDebugHooks()
 installAudioUnlock()
+installUiSounds()
 // Every chunky button clicks.
 window.addEventListener('pointerdown', (e) => {
   if (e.target instanceof Element && e.target.closest('.pp-btn')) sfx.click()

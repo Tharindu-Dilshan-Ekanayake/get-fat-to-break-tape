@@ -23,7 +23,7 @@ test('Boxity report ids: legion_<id>, no mode suffix; our own guests are never r
 
 test('the leaderboards are declared as Boxity takes them', () => {
   const ids = BOXITY_BOARDS.map((b) => b.id)
-  assert.deepEqual(ids, ['muscle', 'rebirths', 'wins'])
+  assert.deepEqual(ids, ['fat', 'rebirths', 'coins'])
   for (const board of BOXITY_BOARDS) {
     assert.match(board.id, /^[a-z0-9_-]{1,32}$/)
     assert.ok(['best', 'sum', 'latest'].includes(board.mode))
@@ -34,36 +34,35 @@ test('the leaderboards are declared as Boxity takes them', () => {
 
 test('a guest who signs in brings their progress to a new account - once', async () => {
   const guest = await loadProfile('boxity-guest-1', 'Guest', 'pod:a')
-  guest.wins = 500
+  guest.coins = 500
   guest.rebirths = 2
   await saveProfile(guest, 'pod:a')
 
   assert.equal(await adoptGuestProgress('account-1', ['boxity-guest-1']), 'boxity-guest-1')
   const account = await loadProfile('account-1', 'Player', 'pod:b')
   assert.equal(account.id, 'account-1')
-  assert.equal(account.wins, 500)
+  assert.equal(account.coins, 500)
   assert.equal(account.rebirths, 2)
 
   // That guest save can never go to a second account...
   assert.equal(await adoptGuestProgress('account-2', ['boxity-guest-1']), null)
   // ...and an account that already has progress keeps its own.
   const other = await loadProfile('boxity-guest-2', 'Guest', 'pod:a')
-  other.wins = 9
+  other.coins = 9
   await saveProfile(other, 'pod:a')
   assert.equal(await adoptGuestProgress('account-1', ['boxity-guest-2']), null)
-  assert.equal((await loadProfile('account-1', 'Player', 'pod:b')).wins, 500)
+  assert.equal((await loadProfile('account-1', 'Player', 'pod:b')).coins, 500)
 })
 
-test('Wins earned climbing are counted for the Most Wins board', () => {
+test('Coins earned running are counted for the Most Coins board', () => {
   const p = createProfile('a', 'A')
-  p.muscle = 30
+  p.fat = 30
   const at = { x: 0, y: 0, z: (PUSH_ZONE.minZ + PUSH_ZONE.maxZ) / 2 }
   const s = new PlayerSession(p, { now: 0, emit: () => {}, getPosition: () => at })
   const track = TRACKS[0]
   s.handle('startPush', {}, 0)
   s.handle('pushAt', { meter: track.stageTop(0), x: 0 }, 4000)
-  const pad = track.winPads[0]
-  s.handle('pushAt', { meter: pad.meter + 1, x: (pad.minX + pad.maxX) / 2 }, 5000)
-  assert.equal(p.wins, pad.wins)
-  assert.equal(s.winsEarned, pad.wins)
+  const tape = track.tapes[0]
+  assert.equal(p.coins, tape.coins)
+  assert.equal(s.coinsEarned, tape.coins)
 })

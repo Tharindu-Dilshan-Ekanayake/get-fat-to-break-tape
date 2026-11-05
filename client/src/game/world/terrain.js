@@ -7,7 +7,7 @@ import { PALETTE } from '../sceneStyle'
 
 /**
  * The mountains ringing the plaza: tall, jagged grey voxel peaks, turning into
- * terracotta cliffs with grass on top either side of the boulder track, plus blocky
+ * terracotta cliffs with grass on top either side of the tape track, plus blocky
  * pines on the terraces.
  *
  * Heights come from a smooth value-noise field quantised into terraces, sampled on a
@@ -17,7 +17,7 @@ import { PALETTE } from '../sceneStyle'
 
 const CELL = 4
 const BOUNDS = { minX: -176, maxX: 156, minZ: -150, maxZ: 136 }
-/** The track climbs north out of the plaza through this gap (its own walls fill it). */
+/** The track runs north out of the plaza through this gap (its own walls fill it). */
 const CORRIDOR = { minX: -RIM_X, maxX: RIM_X, minZ: -10000, maxZ: TRACK_START_Z }
 /** Terrain this close to the track is terracotta cliff; further out, grey rock. */
 const CLIFF_REACH = 30
@@ -73,13 +73,14 @@ const TREE_HALF_WIDTH = 2.6
  *
  * @param {import('../blocks').BlockSet} blocks
  * @param {() => number} rand
+ * @param {{ leaves: string[], trunk: string }} [colors] defaults to the day palette's
  */
-export function addTree(blocks, x, base, z, scale = 1, rand = Math.random) {
+export function addTree(blocks, x, base, z, scale = 1, rand = Math.random, colors = PALETTE) {
   const s = scale
   const trunk = 2.6 * s
-  blocks.addOn(x, base, z, 0.9 * s, trunk, 0.9 * s, PALETTE.trunk)
+  blocks.addOn(x, base, z, 0.9 * s, trunk, 0.9 * s, colors.trunk)
 
-  const greens = PALETTE.leaves
+  const greens = colors.leaves
   const green = greens[Math.floor(rand() * greens.length)]
   const tiers = [5.2, 4.3, 3.4, 2.5, 1.6]
   let y = base + trunk - 0.4 * s
@@ -91,8 +92,13 @@ export function addTree(blocks, x, base, z, scale = 1, rand = Math.random) {
   blocks.addOn(x, y, z, 0.8 * s, 1.1 * s, 0.8 * s, green)
 }
 
-/** Builds the mountain ring into `blocks` and returns how many trees it planted. */
-export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
+/**
+ * Builds the mountain ring into `blocks`, in `palette`'s rock, cliff and leaf colours
+ * (see palette.js), and returns how many trees it planted.
+ */
+export function buildTerrain(blocks, { treeDensity = 1, palette = PALETTE } = {}) {
+  const cliff = palette.cliff
+  const cliffStyle = palette.cliffStyle ?? STYLE.TERRAIN
   const cols = Math.ceil((BOUNDS.maxX - BOUNDS.minX) / CELL)
   const rows = Math.ceil((BOUNDS.maxZ - BOUNDS.minZ) / CELL)
   const heights = new Int16Array(cols * rows)
@@ -118,10 +124,10 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
     const z = BOUNDS.minZ + run.j0 * CELL + depth / 2
     // Sunk slightly so no seam shows where the mountains meet the ground plane.
     if (run.kind === 2) {
-      blocks.addOn(x, -0.5, z, width, run.h + 0.5, depth, PALETTE.cliff, STYLE.TERRAIN)
+      blocks.addOn(x, -0.5, z, width, run.h + 0.5, depth, cliff, cliffStyle)
     } else {
       // Grey rock in a few shades, by height, so the terraces read.
-      const shade = PALETTE.rock[(run.h / STEP) % PALETTE.rock.length]
+      const shade = palette.rock[(run.h / STEP) % palette.rock.length]
       blocks.addOn(x, -0.5, z, width, run.h + 0.5, depth, shade, STYLE.STUDS)
     }
   }
@@ -184,14 +190,13 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
       const reach = TREE_HALF_WIDTH * scale
       if (placed.some((t) => Math.max(Math.abs(t.x - x), Math.abs(t.z - z)) < t.reach + reach)) continue
       placed.push({ x, z, reach })
-      addTree(blocks, x, h, z, scale, rand)
+      addTree(blocks, x, h, z, scale, rand, palette)
       trees += 1
     }
   }
 
-  // Pines along the top of the walls round the plaza - over the Train Zones on the west,
-  // and round the other sides - rather than down beside the gyms or the track's gate,
-  // where they'd hide things.
+  // Pines along the top of the walls round the plaza - over the Food Courts on the west,
+  // and round the other sides - rather than down in the plaza, where they'd hide things.
   const wallTrees = [
     [PLAZA.minX - 3, 26],
     [PLAZA.minX - 3, 10],
@@ -207,14 +212,7 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
     const reach = TREE_HALF_WIDTH * 1.15
     if (h === 0 || placed.some((t) => Math.max(Math.abs(t.x - x), Math.abs(t.z - z)) < t.reach + reach)) continue
     placed.push({ x, z, reach })
-    addTree(blocks, x, h, z, 1.15, rand)
-  }
-  // And a couple inside the plaza's far corners, where they hide nothing.
-  for (const [x, z] of [
-    [PLAZA.maxX - 4, PLAZA.maxZ - 5],
-    [26, PLAZA.maxZ - 3],
-  ]) {
-    addTree(blocks, x, 0, z, 1.15, rand)
+    addTree(blocks, x, h, z, 1.15, rand, palette)
   }
 
   return { trees }

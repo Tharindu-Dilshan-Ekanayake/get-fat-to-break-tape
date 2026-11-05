@@ -20,7 +20,7 @@ import {
   disposeMergedBody,
   mergeBody,
   placeHand,
-  prepareMuscleParts,
+  prepareFatParts,
   resetPose,
 } from './avatarRig'
 
@@ -144,7 +144,7 @@ const DressedAvatar = forwardRef(function DressedAvatar(
   }, [character])
 
   // The rounded body's parts, built bit by bit while the rest of the avatar loads.
-  useEffect(() => prepareMuscleParts(rig), [rig])
+  useEffect(() => prepareFatParts(rig), [rig])
 
   // Measured once, from the bind pose, before proportions touch the root scale.
   const fit = useMemo(() => {

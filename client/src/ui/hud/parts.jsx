@@ -24,11 +24,11 @@ export function AlertBadge({ size = 44, style }) {
   )
 }
 
-/** A price in Wins: the trophy and the amount, gold - or red while you can't afford it. */
+/** A price in Coins: a coin and the amount, gold - or red while you can't afford it. */
 export function Price({ amount, size = 34, afford = true, className = '', style }) {
   return (
     <span className={`inline-flex items-center ${className}`} style={{ gap: u(size * 0.12), fontSize: u(size), lineHeight: 1, ...style }}>
-      <Icon name="trophy" size={u(size * 1.1)} />
+      <Icon name="coin" size={u(size * 1.1)} />
       <StrokeText stroke={u(size * 0.24)} gradient={afford ? GRADIENTS.gold : GRADIENTS.priceShort}>
         {formatNumber(amount)}
       </StrokeText>

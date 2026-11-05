@@ -7,8 +7,8 @@ import { createProfile, createSession } from '@shared/logic'
  * Everything the UI renders from. Written by the network layer (profile, events) and
  * the 10 Hz game ticker (zones, timers) - never from a frame loop.
  *
- * Components must select narrowly (`useGame((s) => s.profile.wins)`), so a Muscle tick
- * re-renders the Muscle label and nothing else.
+ * Components must select narrowly (`useGame((s) => s.profile.coins)`), so a bite
+ * re-renders the Fat label and nothing else.
  */
 
 export const useGame = create((set) => ({
@@ -40,14 +40,15 @@ export const useGame = create((set) => ({
     trainZone: -1,
     trainZoneNear: -1,
     pushZone: false,
-    pad: -1,
+    /** At the Food Shop's counter (the shop opens). */
+    foodShop: false,
     egg: null,
     portal: null,
     freeReward: false,
     sphinx: false,
     auras: false,
     potions: false,
-    /** Up the mountain, in a SAFEZONE by the next boulder: that stage's index, else -1. */
+    /** Kept for the HUD's sake: always -1 (there's nothing to take mid-track any more). */
     climbBoulder: -1,
   },
 
@@ -56,24 +57,19 @@ export const useGame = create((set) => ({
   /** Extra data for the open panel (e.g. which egg the hatch panel is for). */
   panelData: null,
 
-  /** True while you're up the mountain (the frame-rate state is push in pushControl). */
+  /** True while you're rolling down the track (the frame-rate state is push in pushControl). */
   pushing: false,
   /** True while Boxity shows an ad break: the game stands still. */
   paused: false,
-  /**
-   * Crushed, and waiting to respawn (Boxity's death screen):
-   * `{ stage, need, seconds }`, seconds being Boxity's countdown (0: Respawn may be pressed).
-   */
-  death: null,
-  /** Up the mountain: 'push' (pushing a boulder) or 'free' (walking a SAFEZONE); null in the plaza. */
+  /** Down the track: 'roll'; null in the plaza. */
   climb: null,
-  /** The big message of the moment up the track: { kind: 'clear' | 'crushed' | 'top', ..., id }. */
+  /** The big message of the moment down the track: { kind: 'tape' | 'blocked' | 'top', ..., id }. */
   pushBanner: null,
   /**
-   * The Wins the counter shows while a cashed-in climb's Wins fly home to it (it counts up
-   * as each trophy lands); null the rest of the time, when it shows your Wins.
+   * The Coins the counter shows while a roll's Coins fly home to it (it counts up as each
+   * coin lands); null the rest of the time, when it shows your Coins.
    */
-  winsShown: null,
+  coinsShown: null,
   /** Active hatch animation: { eggId, pets }. */
   hatch: null,
   /** Keep hatching the egg you're standing at (the T button). Client-side only. */
@@ -95,16 +91,15 @@ export const useGame = create((set) => ({
   togglePanel: (panel) => set((s) => (s.panel === panel ? { panel: null, panelData: null } : { panel, panelData: null })),
 
   setPaused: (paused) => set({ paused }),
-  setDeath: (death) => set({ death }),
   setPushing: (pushing) => set(pushing ? { pushing, panel: null, panelData: null } : { pushing, pushBanner: null }),
   setClimb: (climb) => set({ climb }),
   showPushBanner: (banner) => set({ pushBanner: banner ? { ...banner, id: performance.now() } : null }),
-  /** Holds the Wins counter at `wins` (what you had before a payout), for the Wins on their way to it. */
-  holdWins: (wins) => set((s) => ({ winsShown: s.winsShown ?? Math.min(wins, s.profile.wins) })),
-  /** Some of them have landed: the counter counts up (never past your real Wins). */
-  landWins: (amount) => set((s) => (s.winsShown === null ? {} : { winsShown: Math.min(s.profile.wins, Math.round(s.winsShown + amount)) })),
-  /** All home: the counter shows your Wins again. */
-  showWins: () => set({ winsShown: null }),
+  /** Holds the Coins counter at `coins` (what you had before a payout), for the Coins on their way to it. */
+  holdCoins: (coins) => set((s) => ({ coinsShown: s.coinsShown ?? Math.min(coins, s.profile.coins) })),
+  /** Some of them have landed: the counter counts up (never past your real Coins). */
+  landCoins: (amount) => set((s) => (s.coinsShown === null ? {} : { coinsShown: Math.min(s.profile.coins, Math.round(s.coinsShown + amount)) })),
+  /** All home: the counter shows your Coins again. */
+  showCoins: () => set({ coinsShown: null }),
 
   setHatch: (hatch) => set({ hatch }),
   setAutoHatch: (autoHatch) => set({ autoHatch }),

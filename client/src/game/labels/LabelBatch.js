@@ -12,7 +12,7 @@ import {
 import { iconUrl } from '../../ui/icons'
 
 /**
- * Floating world text ("FREE x1 Power", "World 2 - Needs 2.5M Power", prices...).
+ * Floating world text ("Snack Corner x1 FAT", "First tape needs 20 Fat", prices...).
  *
  * Every label is drawn once into a shared canvas atlas and shown as a camera-facing
  * quad; all quads of one atlas page are a single mesh. So the whole lobby's labels cost
@@ -319,10 +319,16 @@ export class LabelBatch {
     return geometry
   }
 
-  /** Redraws one label in place (e.g. a pad going from "28 Wins" to "OWNED"). */
+  /**
+   * Redraws one label in place (e.g. a pad going from "28 Coins" to "OWNED") - only if
+   * it now says something different: a redraw re-uploads its whole page to the GPU.
+   */
   async update(id, spec) {
     const l = this.labels.get(id)
     if (!l?.page) return
+    const key = JSON.stringify(spec)
+    if (key === l.drawnKey) return
+    l.drawnKey = key
     await preload([spec])
     l.spec = { ...spec, pxPerUnit: l.spec.pxPerUnit }
     this.drawLabel(l, l.spec)

@@ -4,15 +4,15 @@ import {
   BASE_GAIN,
   DAILY_INTERVAL_MS,
   DAILY_REWARDS,
-  DUMBBELLS,
+  FOODS,
   EGGS,
   FREE_REWARD,
   ITEMS,
   levelCap,
   MAX_EQUIPPED_PETS,
   MAX_PET_INVENTORY,
-  muscleForLevel,
-  MUSCLE_PACKS,
+  fatForLevel,
+  FAT_PACKS,
   OFFLINE_MAX_MS,
   OFFLINE_MIN_MS,
   OFFLINE_RATE,
@@ -20,14 +20,12 @@ import {
   PLAYTIME_REWARDS,
   RARITIES,
   REBIRTH_SKIP_RUNS,
-  ORBS,
   rebirthMultiplier,
   SAFE_LENGTH,
   SHOP,
   TRAIN_INTERVAL,
   TRAIN_ZONES,
   TUTORIAL,
-  WIN_PAD,
   WORLDS,
 } from './balance.js'
 
@@ -50,18 +48,21 @@ export function createProfile(id, name) {
     v: PROFILE_VERSION,
     id,
     name,
-    muscle: 0,
-    wins: 0,
+    /** The Fat you carry now: your belly's size, and the fuel for your next run. */
+    fat: 0,
+    /** Every bit of Fat eaten since your last rebirth (a run doesn't take it back): your level. */
+    eaten: 0,
+    coins: 0,
     rebirths: 0,
     level: 1,
-    equippedDumbbell: 'wood',
-    ownedDumbbells: ['wood'],
+    equippedFood: 'cookie',
+    ownedFoods: ['cookie'],
     equippedAura: null,
     pets: [],
     equippedPets: [],
     nextPetUid: 1,
     items: {},
-    boosts: { muscle: 0, wins: 0 },
+    boosts: { fat: 0, coins: 0 },
     passes: {},
     daily: { start: 0, claimed: [] },
     freeRewardClaimed: false,
@@ -69,7 +70,7 @@ export function createProfile(id, name) {
     badges: [],
     /** The world you're in: an index into WORLDS. */
     world: 0,
-    stats: { pushes: 0, lifts: 0, bestMeter: 0, playtime: 0, bestMuscle: 0, tops: 0 },
+    stats: { runs: 0, bites: 0, tapes: 0, bestMeter: 0, playtime: 0, bestFat: 0, tops: 0 },
     lastZone: -1,
     lastSeen: 0,
     settings: { autoRebirth: false },
@@ -87,20 +88,21 @@ export function normalizeProfile(raw, id, name) {
   p.daily = { ...base.daily, ...(raw.daily || {}) }
   p.items = Object.fromEntries(Object.entries(raw.items || {}).filter(([itemId]) => ITEMS[itemId]))
   p.passes = { ...(raw.passes || {}) }
-  p.muscle = Number.isFinite(raw.muscle) ? Math.max(0, raw.muscle) : 0
-  p.wins = Number.isFinite(raw.wins) ? Math.max(0, raw.wins) : 0
+  p.fat = Number.isFinite(raw.fat) ? Math.max(0, raw.fat) : 0
+  p.eaten = Number.isFinite(raw.eaten) ? Math.max(p.fat, raw.eaten) : p.fat
+  p.coins = Number.isFinite(raw.coins) ? Math.max(0, raw.coins) : 0
   p.pets = Array.isArray(raw.pets) ? raw.pets.filter((pet) => PETS[pet?.id]) : []
   p.equippedPets = Array.isArray(raw.equippedPets)
     ? raw.equippedPets.filter((uid) => p.pets.some((pet) => pet.uid === uid)).slice(0, MAX_EQUIPPED_PETS)
     : []
-  const owned = Array.isArray(raw.ownedDumbbells) ? raw.ownedDumbbells.filter((dumbbellId) => dumbbellIndex(dumbbellId) >= 0) : []
-  p.ownedDumbbells = owned.length ? owned : ['wood']
-  if (!p.ownedDumbbells.includes(p.equippedDumbbell)) p.equippedDumbbell = p.ownedDumbbells[0]
+  const owned = Array.isArray(raw.ownedFoods) ? raw.ownedFoods.filter((foodId) => foodIndex(foodId) >= 0) : []
+  p.ownedFoods = owned.length ? owned : ['cookie']
+  if (!p.ownedFoods.includes(p.equippedFood)) p.equippedFood = p.ownedFoods[0]
   if (p.equippedAura && !ownsAura(p, p.equippedAura)) p.equippedAura = null
   // A world you're not (or no longer) allowed in is World 1.
   if (!Number.isInteger(p.world) || !worldUnlocked(p, p.world)) p.world = 0
-  // Levels follow from Muscle; recompute rather than trust a stored one.
-  p.level = levelFor(p.muscle, p.rebirths)
+  // Levels follow from the Fat eaten; recompute rather than trust a stored one.
+  p.level = levelFor(p.eaten, p.rebirths)
   // The tutorial is for brand-new players only: anyone who has rebirthed is past it.
   if (p.rebirths > 0) p.tutorialStep = TUTORIAL.length
   p.v = PROFILE_VERSION
@@ -113,8 +115,8 @@ export function createSession(now) {
 
 // --- Lookups ------------------------------------------------------------------------
 
-export const dumbbellIndex = (id) => DUMBBELLS.findIndex((d) => d.id === id)
-export const dumbbellById = (id) => DUMBBELLS.find((d) => d.id === id) || DUMBBELLS[0]
+export const foodIndex = (id) => FOODS.findIndex((d) => d.id === id)
+export const foodById = (id) => FOODS.find((d) => d.id === id) || FOODS[0]
 
 export function isZoneUnlocked(profile, index) {
   const zone = TRAIN_ZONES[index]
@@ -126,7 +128,7 @@ export function isZoneUnlocked(profile, index) {
 export const ownsAura = (profile, id) => Boolean(AURAS[id] && profile.passes[AURAS[id].product])
 
 /**
- * Muscle values are kept to a tenth below a million (the HUD shows "+1.5") and whole
+ * Fat values are kept to a tenth below a million (the HUD shows "+1.5") and whole
  * above, so repeated small gains don't pile up float dust.
  */
 export const tidy = (value) => (value < 1e6 ? Math.round(value * 10) / 10 : Math.round(value))
@@ -140,21 +142,21 @@ export function niceRound(n) {
 
 // --- Levels -------------------------------------------------------------------------
 
-/** The level `muscle` reaches, never above the cap for `rebirths`. */
-export function levelFor(muscle, rebirths) {
+/** The level `eaten` Fat reaches, never above the cap for `rebirths`. */
+export function levelFor(eaten, rebirths) {
   const cap = levelCap(rebirths)
   let level = 1
-  while (level < cap && muscle >= muscleForLevel(level + 1)) level += 1
+  while (level < cap && eaten >= fatForLevel(level + 1)) level += 1
   return level
 }
 
 export const isMaxLevel = (profile) => profile.level >= levelCap(profile.rebirths)
 
-/** Muscle into the current level and what the level takes: the bar's "25/36". */
+/** Fat eaten into the current level and what the level takes: the bar's "25/36". */
 export function levelXp(profile) {
-  const from = muscleForLevel(profile.level)
-  const to = muscleForLevel(profile.level + 1)
-  return { have: Math.max(0, profile.muscle - from), need: to - from }
+  const from = fatForLevel(profile.level)
+  const to = fatForLevel(profile.level + 1)
+  return { have: Math.max(0, profile.eaten - from), need: to - from }
 }
 
 /** 0..1 through the current level: what the level bar fills to. */
@@ -185,85 +187,92 @@ export function petMultiplier(profile) {
 
 export const isBoostActive = (profile, kind, now) => (profile.boosts[kind] || 0) > now
 
-/** The x2 Muscle pass and potion; they stack. */
-export function muscleBoostMultiplier(profile, now) {
+/** The x2 Fat pass and potion; they stack. */
+export function fatBoostMultiplier(profile, now) {
   const passes = profile.passes
-  return (passes.muscleX2 ? 2 : 1) * (passes.muscleX3 ? 3 : 1) * (passes.vip ? 1.5 : 1) * (isBoostActive(profile, 'muscle', now) ? 2 : 1)
+  return (passes.fatX2 ? 2 : 1) * (passes.fatX3 ? 3 : 1) * (passes.vip ? 1.5 : 1) * (isBoostActive(profile, 'fat', now) ? 2 : 1)
 }
 
-/** The aura you wear multiplies your Wins. */
-export const auraMultiplier = (profile) => AURAS[profile.equippedAura]?.wins ?? 1
+/** The aura you wear multiplies your Coins. */
+export const auraMultiplier = (profile) => AURAS[profile.equippedAura]?.coins ?? 1
 
-/** The x2 and x3 Wins passes, VIP, the Wins potion and your aura; they all stack. */
-export function winsMultiplier(profile, now) {
+/** The x2 and x3 Coins passes, VIP, the Coins potion and your aura; they all stack. */
+export function coinsMultiplier(profile, now) {
   const passes = profile.passes
-  return (passes.winsX2 ? 2 : 1) * (passes.winsX3 ? 3 : 1) * (passes.vip ? 1.5 : 1) * (isBoostActive(profile, 'wins', now) ? 2 : 1) * auraMultiplier(profile)
+  return (passes.coinsX2 ? 2 : 1) * (passes.coinsX3 ? 3 : 1) * (passes.vip ? 1.5 : 1) * (isBoostActive(profile, 'coins', now) ? 2 : 1) * auraMultiplier(profile)
 }
 
-/** Everything that multiplies a Muscle gain except the dumbbell and where you earn it. */
+/** Everything that multiplies a Fat gain except the food and where you earn it. */
 export function gainMultiplier(profile, now) {
-  return rebirthMultiplier(profile.rebirths) * petMultiplier(profile) * muscleBoostMultiplier(profile, now)
+  return rebirthMultiplier(profile.rebirths) * petMultiplier(profile) * fatBoostMultiplier(profile, now)
 }
 
-export const dumbbellPower = (profile) => dumbbellById(profile.equippedDumbbell).power
+export const foodPower = (profile) => foodById(profile.equippedFood).power
 
-/** Muscle from one lift with your dumbbell, standing in Train Zone `zone` (-1 = none). */
-export function liftGain(profile, zone, now) {
+/** Fat from one bite of your food, sat at Food Court `zone` (-1 = none). */
+export function biteGain(profile, zone, now) {
   const zoneMult = zone >= 0 && TRAIN_ZONES[zone] ? TRAIN_ZONES[zone].mult : 1
-  return tidy(BASE_GAIN * dumbbellPower(profile) * zoneMult * gainMultiplier(profile, now))
+  return tidy(BASE_GAIN * foodPower(profile) * zoneMult * gainMultiplier(profile, now))
 }
 
-// --- Lifting, levels, rebirth -------------------------------------------------------
+// --- Eating, levels, rebirth --------------------------------------------------------
 
 /**
- * Banks a Muscle gain and the levels it reaches. Muscle keeps growing at max level (it
- * is your pushing strength); only the level stops, at the rebirth cap.
+ * Banks a Fat gain - on your belly, and towards your level. Fat keeps piling on at max
+ * level (it's your fuel for the run); only the level stops, at the rebirth cap.
  */
-function addMuscle(profile, gain) {
+function addFat(profile, gain) {
   const cap = levelCap(profile.rebirths)
   const added = tidy(Math.max(0, gain))
-  profile.muscle = tidy(profile.muscle + added)
-  profile.stats.bestMuscle = Math.max(profile.stats.bestMuscle, profile.muscle)
+  profile.fat = tidy(profile.fat + added)
+  profile.eaten = tidy(profile.eaten + added)
+  profile.stats.bestFat = Math.max(profile.stats.bestFat, profile.fat)
   const before = profile.level
-  profile.level = levelFor(profile.muscle, profile.rebirths)
+  profile.level = levelFor(profile.eaten, profile.rebirths)
   return { gain: added, leveledUp: profile.level > before, maxed: profile.level >= cap }
 }
 
-/** One lift (a click), in Train Zone `zone` or -1. */
-export function applyLift(profile, zone, now) {
-  profile.stats.lifts += 1
-  return { ok: true, ...addMuscle(profile, liftGain(profile, zone, now)) }
+/** One bite (a click), at Food Court `zone` or -1. */
+export function applyBite(profile, zone, now) {
+  profile.stats.bites += 1
+  return { ok: true, ...addFat(profile, biteGain(profile, zone, now)) }
 }
 
-/** One automatic lift standing in Train Zone `index`. */
+/** One automatic bite sat at Food Court `index`. */
 export function applyTrain(profile, index, now) {
-  if (!isZoneUnlocked(profile, index)) return { ok: false, error: 'Train Zone locked' }
+  if (!isZoneUnlocked(profile, index)) return { ok: false, error: 'Food Court locked' }
   profile.lastZone = index
-  return { ok: true, ...addMuscle(profile, liftGain(profile, index, now)) }
+  return { ok: true, ...addFat(profile, biteGain(profile, index, now)) }
 }
 
 
-/** Rebirth: +1 rebirth; Muscle and levels reset (Wins, dumbbells and pets stay). */
+/** Rebirth: +1 rebirth; Fat, what you've eaten and levels reset (Coins, foods and pets stay). */
 export function applyRebirth(profile) {
   if (!isMaxLevel(profile)) return { ok: false, error: `Reach level ${levelCap(profile.rebirths)} first!` }
   profile.rebirths += 1
   profile.tutorialStep = TUTORIAL.length
-  profile.muscle = 0
+  profile.fat = 0
+  profile.eaten = 0
   profile.level = 1
   return { ok: true, rebirths: profile.rebirths }
 }
 
-// --- The boulder tracks ------------------------------------------------------------------
+// --- The tape tracks ------------------------------------------------------------------
 
 /**
- * World `index`'s track: its stages bottom to top, each a slope with a flat SAFEZONE
- * above all but the last, and THE TOP at the end. Track metre m is measured along it,
- * up the slopes and across the flats alike, from the foot of the first slope.
+ * World `index`'s track: its stages from the start down, each a slope with a TAPE across
+ * its end and a flat checkpoint past it (all but the last, whose tape is THE END). Track
+ * metre m is measured along it, down the slopes and across the flats alike, from the
+ * start of the first slope.
+ *
+ * Stage i's tape takes its `need` Fat to smash: a roll with `power` Fat smashes every
+ * tape from the first up to the last it's enough for (`tapesFor`), and is stopped dead
+ * at the next (`reachOf`: that tape's metre), or rolls on to the end.
  */
 export function makeTrack(world, index) {
   const stages = world.stages
   const last = stages.length - 1
-  /** Metre where each stage's slope starts: past the slopes and SAFEZONEs below it. */
+  /** Metre where each stage's slope starts: past the slopes and checkpoints below it. */
   const starts = stages.map((_, i) => stages.slice(0, i).reduce((sum, stage) => sum + stage.length + SAFE_LENGTH, 0))
   const stageStart = (i) => starts[i]
   const stageTop = (i) => starts[i] + stages[i].length
@@ -272,36 +281,20 @@ export function makeTrack(world, index) {
     for (let i = 0; i < last; i += 1) if (meter < stageTop(i)) return i
     return last
   }
-  const powerPerMeter = (i) => stages[i].need / stages[i].length
-  const safeStart = (i) => stageTop(i - 1)
-  const stagesCleared = (muscle) => {
+  /** How many tapes `fat` smashes on a run, one after the other from the first. */
+  const tapesFor = (fat) => {
     let n = 0
-    while (n < stages.length && muscle >= stages[n].need) n += 1
+    while (n < stages.length && fat >= stages[n].need) n += 1
     return n
   }
-  // The WINS pads: one in the SAFEZONE at the top of each stage's slope, and THE TOP's
-  // at the very end of the last (right across it), each paying the Wins of every stage
-  // up to it - the whole climb, cashed in. Standing anywhere in [meter, end] and
-  // [minX, maxX] is standing on it.
-  let climbed = 0
-  const winPads = stages.map((stage, i) => {
-    climbed += stage.wins
-    const wins = climbed
-    return i < last
-      ? { stage: i, meter: safeStart(i + 1) + WIN_PAD.from, end: safeStart(i + 1) + WIN_PAD.to, minX: WIN_PAD.minX, maxX: WIN_PAD.maxX, wins }
-      : { stage: i, meter: length, end: Infinity, minX: -Infinity, maxX: Infinity, wins }
-  })
-  // The Wins orbs (see ORBS), bottom to top. `side` is -1 (left) or 1 (right); how far
-  // out is the client's to say, as it goes by the size of the stage's boulder.
-  const orbs = []
-  stages.forEach((stage, i) => {
-    const here = []
-    for (let m = ORBS.from, group = 0; m + (ORBS.group - 1) * ORBS.spacing <= stage.length - ORBS.from; m += ORBS.every, group += 1) {
-      for (let k = 0; k < ORBS.group; k += 1) here.push({ stage: i, meter: starts[i] + m + k * ORBS.spacing, side: (group + i) % 2 ? -1 : 1 })
-    }
-    const wins = Math.max(1, Math.round((stage.wins * ORBS.share) / Math.max(1, here.length)))
-    for (const orb of here) orbs.push({ index: orbs.length, ...orb, wins })
-  })
+  /** Where a roll with `power` Fat is stopped: at the first tape too strong for it, or the end. */
+  const reachOf = (power) => {
+    const n = tapesFor(power)
+    return n < stages.length ? stageTop(n) : length
+  }
+  // The tapes, one across the end of every slope, each taking its stage's need to smash
+  // and paying its Coins.
+  const tapes = stages.map((stage, i) => ({ stage: i, meter: stageTop(i), coins: stage.coins, need: stage.need }))
   return {
     index,
     world,
@@ -311,32 +304,19 @@ export function makeTrack(world, index) {
     /** Metres of slope below each stage's: the slopes of every stage before it. */
     slopesBelow: stages.map((_, i) => stages.slice(0, i).reduce((sum, stage) => sum + stage.length, 0)),
     stageStart,
-    /** Metre at the top of stage `i`'s slope: its SAFEZONE starts there (THE TOP, for the last). */
+    /** Metre at the top of stage `i`'s slope, where its tape is (THE TOP, for the last). */
     stageTop,
-    /** Metre where the flat SAFEZONE below stage `i` (i >= 1) starts. */
-    safeStart,
-    /** Index of the stage metre `meter` is in. A SAFEZONE counts as the stage it leads up to. */
+    /** Metre where the flat checkpoint below stage `i` (i >= 1) starts: its tape's. */
+    safeStart: (i) => stageTop(i - 1),
+    /** Index of the stage metre `meter` is in. A checkpoint counts as the stage it leads up to. */
     stageAt,
-    /** Whether metre `meter` is on a slope (not the plaza, a SAFEZONE or the summit). */
+    /** Whether metre `meter` is on a slope (not the plaza, a checkpoint or the end). */
     isSlope: (meter) => meter > 0 && meter < length && meter > stageStart(stageAt(meter)),
-    /** Power stage `i`'s boulder takes for every metre it's pushed up. */
-    powerPerMeter,
-    /** Power used pushing stage `i`'s boulder from the foot of its slope up to `meter`. */
-    stageCost: (i, meter) => Math.min(stages[i].length, Math.max(0, meter - stageStart(i))) * powerPerMeter(i),
-    /** How far up stage `i` `power` pushes its boulder: the top, with at least the stage's need. */
-    stageReach: (i, power) => stageStart(i) + Math.min(stages[i].length, Math.max(0, power) / powerPerMeter(i)),
-    /** How many stages `muscle` climbs, one after the other (power is full again for each). */
-    stagesCleared,
-    winPads,
-    /** Every Wins orb, by index: { index, stage, meter, side, wins }. */
-    orbs,
-    /** The Wins orbs up each stage's slope. */
-    orbsOn: stages.map((_, i) => orbs.filter((orb) => orb.stage === i)),
-    /** Wins (before multipliers) of a climb with `muscle`, cashed in at the last pad it gets to. */
-    runWins: (muscle) => {
-      const cleared = stagesCleared(muscle)
-      return cleared > 0 ? winPads[cleared - 1].wins : 0
-    },
+    reachOf,
+    tapesFor,
+    tapes,
+    /** Coins (before multipliers) the tapes of a run with `fat` pay. */
+    runCoins: (fat) => tapes.slice(0, tapesFor(fat)).reduce((sum, tape) => sum + tape.coins, 0),
   }
 }
 
@@ -346,78 +326,74 @@ export const TRACKS = WORLDS.map(makeTrack)
 /** The track of the world you're in. */
 export const trackOf = (profile) => TRACKS[profile.world] ?? TRACKS[0]
 
-/** Whether you may go to world `world`: World 1 always; past it, once you've the Wins (or have been). */
+/** Whether you may go to world `world`: World 1 always; past it, once you've the Coins (or have been). */
 export const worldUnlocked = (profile, world) =>
-  world === 0 || (WORLDS[world] && (profile.badges.includes(WORLDS[world].id) || profile.wins >= WORLDS[world].wins))
+  world === 0 || (WORLDS[world] && (profile.badges.includes(WORLDS[world].id) || profile.coins >= WORLDS[world].coins))
 
-/** Whether (meter, x) on a track stands on WINS pad `pad` (a little slack for lag). */
-export const onWinPad = (pad, meter, x, slack = 0) =>
-  meter >= pad.meter && meter <= pad.end && x >= pad.minX - slack && x <= pad.maxX + slack
-
-/** Wins (before multipliers) of a climb with your max level's Muscle, in your world: what packs and skips cost in. */
-export const maxRunWins = (profile) => trackOf(profile).runWins(muscleForLevel(levelCap(profile.rebirths)))
+/** Coins (before multipliers) of a run on your max level's Fat, in your world: what packs and skips cost in. */
+export const maxRunCoins = (profile) => trackOf(profile).runCoins(fatForLevel(levelCap(profile.rebirths)))
 
 /**
- * The three Muscle packs as they stand for you now: `[{ amount, price }]`. Both follow
- * the Muscle your next level needs, and the Wins a climb with that much Muscle pays.
+ * The three Fat packs as they stand for you now: `[{ amount, price }]`. Both follow
+ * the Fat your next level needs, and the Coins a run on that much Fat pays.
  */
-export function musclePacks(profile) {
-  const next = muscleForLevel(profile.level + 1)
-  const wins = trackOf(profile).runWins(next)
-  return MUSCLE_PACKS.map((pack) => ({
+export function fatPacks(profile) {
+  const next = fatForLevel(profile.level + 1)
+  const coins = trackOf(profile).runCoins(next)
+  return FAT_PACKS.map((pack) => ({
     amount: niceRound(Math.max(10, next * pack.share)),
-    price: niceRound(Math.max(5, wins * pack.runs)),
+    price: niceRound(Math.max(5, coins * pack.runs)),
   }))
 }
 
-/** Buys Muscle pack `index` with Wins. */
-export function buyMusclePack(profile, index) {
-  const pack = musclePacks(profile)[index]
+/** Buys Fat pack `index` with Coins. */
+export function buyFatPack(profile, index) {
+  const pack = fatPacks(profile)[index]
   if (!pack) return { ok: false, error: 'Unknown pack' }
-  if (profile.wins < pack.price) return { ok: false, error: 'Not enough Wins!' }
-  profile.wins -= pack.price
-  addMuscle(profile, pack.amount)
+  if (profile.coins < pack.price) return { ok: false, error: 'Not enough Coins!' }
+  profile.coins -= pack.price
+  addFat(profile, pack.amount)
   return { ok: true, amount: pack.amount }
 }
 
-/** Wins to rebirth now without reaching max level first. */
-export const rebirthSkipPrice = (profile) => niceRound(Math.max(50, maxRunWins(profile) * REBIRTH_SKIP_RUNS))
+/** Coins to rebirth now without reaching max level first. */
+export const rebirthSkipPrice = (profile) => niceRound(Math.max(50, maxRunCoins(profile) * REBIRTH_SKIP_RUNS))
 
 export function skipRebirth(profile) {
   if (isMaxLevel(profile)) return applyRebirth(profile)
   const price = rebirthSkipPrice(profile)
-  if (profile.wins < price) return { ok: false, error: 'Not enough Wins!' }
-  profile.wins -= price
+  if (profile.coins < price) return { ok: false, error: 'Not enough Coins!' }
+  profile.coins -= price
   profile.level = levelCap(profile.rebirths)
   return applyRebirth(profile)
 }
 
-// --- Dumbbells ----------------------------------------------------------------------
+// --- Foods ----------------------------------------------------------------------
 
-export function buyDumbbell(profile, dumbbellId) {
-  const dumbbell = DUMBBELLS.find((d) => d.id === dumbbellId)
-  if (!dumbbell) return { ok: false, error: 'Unknown dumbbell' }
-  if (profile.ownedDumbbells.includes(dumbbellId)) return equipDumbbell(profile, dumbbellId)
-  const previous = DUMBBELLS[dumbbellIndex(dumbbellId) - 1]
-  if (previous && !profile.ownedDumbbells.includes(previous.id)) {
+export function buyFood(profile, foodId) {
+  const food = FOODS.find((d) => d.id === foodId)
+  if (!food) return { ok: false, error: 'Unknown food' }
+  if (profile.ownedFoods.includes(foodId)) return equipFood(profile, foodId)
+  const previous = FOODS[foodIndex(foodId) - 1]
+  if (previous && !profile.ownedFoods.includes(previous.id)) {
     return { ok: false, error: `Buy the ${previous.name} first!` }
   }
-  if (profile.wins < dumbbell.cost) return { ok: false, error: 'Not enough Wins!' }
-  profile.wins -= dumbbell.cost
-  profile.ownedDumbbells.push(dumbbellId)
-  profile.equippedDumbbell = dumbbellId
-  return { ok: true, bought: true, dumbbellId }
+  if (profile.coins < food.cost) return { ok: false, error: 'Not enough Coins!' }
+  profile.coins -= food.cost
+  profile.ownedFoods.push(foodId)
+  profile.equippedFood = foodId
+  return { ok: true, bought: true, foodId }
 }
 
-export function equipDumbbell(profile, dumbbellId) {
-  if (!profile.ownedDumbbells.includes(dumbbellId)) return { ok: false, error: 'You don’t own that dumbbell' }
-  profile.equippedDumbbell = dumbbellId
-  return { ok: true, equipped: true, dumbbellId }
+export function equipFood(profile, foodId) {
+  if (!profile.ownedFoods.includes(foodId)) return { ok: false, error: 'You don’t own that food' }
+  profile.equippedFood = foodId
+  return { ok: true, equipped: true, foodId }
 }
 
-/** The next dumbbell in the shop you don't have yet, or null. */
-export function nextDumbbell(profile) {
-  return DUMBBELLS.find((d) => !profile.ownedDumbbells.includes(d.id)) || null
+/** The next food in the shop you don't have yet, or null. */
+export function nextFood(profile) {
+  return FOODS.find((d) => !profile.ownedFoods.includes(d.id)) || null
 }
 
 // --- Auras --------------------------------------------------------------------------
@@ -451,18 +427,18 @@ export function addPet(profile, petId) {
 }
 
 /**
- * Hatches `count` eggs. `paid` says how: 'wins' charges the egg's Wins price, 'item'
+ * Hatches `count` eggs. `paid` says how: 'coins' charges the egg's Coins price, 'item'
  * consumes an egg item, 'free' is for reward grants already paid for.
  */
-export function hatchEgg(profile, eggId, count = 1, { paid = 'wins', rand = Math.random } = {}) {
+export function hatchEgg(profile, eggId, count = 1, { paid = 'coins', rand = Math.random } = {}) {
   const egg = EGGS[eggId]
   if (!egg) return { ok: false, error: 'Unknown egg' }
   if (profile.pets.length + count > MAX_PET_INVENTORY) return { ok: false, error: 'Pet inventory full!' }
-  if (paid === 'wins') {
-    if (!egg.cost.wins) return { ok: false, error: 'This egg is premium only' }
-    const price = egg.cost.wins * count
-    if (profile.wins < price) return { ok: false, error: 'Not enough Wins!' }
-    profile.wins -= price
+  if (paid === 'coins') {
+    if (!egg.cost.coins) return { ok: false, error: 'This egg is premium only' }
+    const price = egg.cost.coins * count
+    if (profile.coins < price) return { ok: false, error: 'Not enough Coins!' }
+    profile.coins -= price
   } else if (paid === 'item') {
     const itemId = Object.keys(ITEMS).find((k) => ITEMS[k].kind === 'egg' && ITEMS[k].egg === eggId)
     if (!itemId || (profile.items[itemId] || 0) < count) return { ok: false, error: 'No eggs left' }
@@ -524,11 +500,11 @@ export function usePotion(profile, itemId, now) {
   return { ok: true, boost: item.boost, endsAt: profile.boosts[item.boost] }
 }
 
-/** Applies a reward grant: { wins } | { muscle } | { item } | { pet } | { hatch }. */
+/** Applies a reward grant: { coins } | { fat } | { item } | { pet } | { hatch }. */
 export function applyGrant(profile, grant, { rand = Math.random } = {}) {
   const result = { ok: true }
-  if (grant.wins) profile.wins += grant.wins
-  if (grant.muscle) addMuscle(profile, grant.muscle)
+  if (grant.coins) profile.coins += grant.coins
+  if (grant.fat) addFat(profile, grant.fat)
   if (grant.item) addItem(profile, grant.item, grant.amount || 1)
   if (grant.pet) result.pets = [addPet(profile, grant.pet)]
   if (grant.hatch) {
@@ -601,47 +577,47 @@ export function claimFreeReward(profile, session, opts) {
 
 // --- Shop ---------------------------------------------------------------------------
 
-/** Buys a SHOP item with Wins. An aura is worn as soon as it's bought. */
+/** Buys a SHOP item with Coins. An aura is worn as soon as it's bought. */
 export function buyShopItem(profile, productId, opts = {}) {
   const item = SHOP[productId]
   if (!item) return { ok: false, error: 'Unknown item' }
   if (item.kind === 'pass' && profile.passes[productId]) return { ok: false, error: 'Already owned' }
-  if (profile.wins < item.price) return { ok: false, error: 'Not enough Wins!' }
+  if (profile.coins < item.price) return { ok: false, error: 'Not enough Coins!' }
   if (item.kind === 'pass') {
-    profile.wins -= item.price
+    profile.coins -= item.price
     profile.passes[productId] = true
     if (item.aura) profile.equippedAura = item.aura
     return { ok: true, productId, pass: true }
   }
   const result = applyGrant(profile, item.grant || {}, opts)
-  if (result.ok) profile.wins -= item.price
+  if (result.ok) profile.coins -= item.price
   return { ...result, productId }
 }
 
 // --- Offline progress -------------------------------------------------------------
 
-/** Muscle earned while away, if the player logged off in a Train Zone. */
+/** Fat eaten while away, if the player logged off sat at a Food Court. */
 export function applyOfflineProgress(profile, now) {
   const away = Math.min(OFFLINE_MAX_MS, now - (profile.lastSeen || now))
   if (profile.lastZone < 0 || away < OFFLINE_MIN_MS) return null
   if (!isZoneUnlocked(profile, profile.lastZone)) return null
   const steps = Math.floor(away / 1000 / TRAIN_INTERVAL)
   // Potions don't run while you're away.
-  const gain = liftGain(profile, profile.lastZone, 0)
-  const result = addMuscle(profile, Math.floor(steps * gain * OFFLINE_RATE))
+  const gain = biteGain(profile, profile.lastZone, 0)
+  const result = addFat(profile, Math.floor(steps * gain * OFFLINE_RATE))
   if (result.gain <= 0) return null
-  return { muscle: result.gain, ms: away }
+  return { fat: result.gain, ms: away }
 }
 
 // --- Tutorial & badges ------------------------------------------------------------
 
 /** Advances the tutorial if `event` completes the current step. */
 export function advanceTutorial(profile, event) {
-  // The current step, or a later one done first (pushed without training, say): the
+  // The current step, or a later one done first (ran without eating at a table, say): the
   // guide never asks for something you've already done.
   for (let i = profile.tutorialStep; i < TUTORIAL.length; i += 1) {
     const step = TUTORIAL[i]
-    if (step.event === event && profile.muscle >= (step.muscle || 0)) {
+    if (step.event === event && profile.fat >= (step.fat || 0)) {
       profile.tutorialStep = i + 1
       return true
     }

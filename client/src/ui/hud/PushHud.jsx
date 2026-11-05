@@ -1,14 +1,15 @@
 import { useEffect, useRef } from 'react'
 
-import { TUTORIAL } from '@shared/balance'
 import { formatNumber } from '@shared/format'
 
 import { isSlope, STAGES, stageAt, TRACK_LENGTH } from '../../game/push/course'
-import { endPush, LOW_POWER, powerLeft, push } from '../../game/push/pushControl'
+import { endPush, powerLeft, push } from '../../game/push/pushControl'
 import { STAGE_THEMES } from '../../game/push/themes'
 import { useBloxityStore } from '../../bloxity/store'
+import { RUN_SPEED } from '@shared/balance'
+
 import { useGame } from '../../store/game'
-import DeathCard from './DeathCard'
+import { useQuality } from '../../store/quality'
 import Icon from '../Icon'
 import StrokeText from '../StrokeText'
 import { ChunkyButton } from './parts'
@@ -19,28 +20,33 @@ const stageGradient = (i) => {
   return `linear-gradient(180deg, ${a} 0%, ${b} 45%, ${c} 100%)`
 }
 const SAFE_GRADIENT = 'linear-gradient(180deg, #ffffff 0%, #e6fbff 45%, #7fe2ff 100%)'
-/** How often the frame-rate push numbers are copied into the DOM. */
+/** How often the frame-rate roll numbers are copied into the DOM. */
 const UPDATE_MS = 1000 / 15
 
 /**
- * "💪 196" across the top, as in the reference: your power, draining as you climb and
- * going red as it runs out. Written from the frame-rate push state by a timer, never by
- * React.
+ * Your Fat across the top - the power behind your roll - and beside it the Coins this
+ * roll has made. Written from the frame-rate roll state by a timer, never by React.
  */
-function PowerCounter() {
+function FatCounter() {
   const ref = useRef(null)
+  const coinsRef = useRef(null)
   useEffect(() => {
     let shown = null
+    let shownCoins = null
     const id = setInterval(() => {
       const el = ref.current
       if (!el) return
       const left = Math.floor(powerLeft())
       const text = formatNumber(left)
-      if (text === shown) return
-      shown = text
-      for (const span of el.querySelectorAll('[data-power]')) span.textContent = text
-      const fill = el.querySelector('[data-power-fill]')
-      if (fill) fill.style.color = left <= push.power * LOW_POWER ? '#ff5a4a' : '#ffffff'
+      if (text !== shown) {
+        shown = text
+        for (const span of el.querySelectorAll('[data-power]')) span.textContent = text
+      }
+      const coins = `+${formatNumber(push.coins)}`
+      if (coins !== shownCoins && coinsRef.current) {
+        shownCoins = coins
+        for (const span of coinsRef.current.querySelectorAll('[data-coins]')) span.textContent = coins
+      }
     }, UPDATE_MS)
     return () => clearInterval(id)
   }, [])
@@ -55,20 +61,26 @@ function PowerCounter() {
         background: 'linear-gradient(90deg, transparent, rgba(220,240,255,0.35) 20%, rgba(220,240,255,0.35) 80%, transparent)',
       }}
     >
-      <Icon name="muscle" size={u(104)} />
+      <Icon name="fat" size={u(104)} />
       <span ref={ref} className="pp-text" style={{ fontSize: u(96) }}>
         <span data-power aria-hidden="true" className="pp-text-stroke" style={{ WebkitTextStrokeWidth: u(16) }} />
         <span data-power data-power-fill className="pp-text-fill" style={{ color: '#ffffff' }} />
+      </span>
+      <span style={{ width: u(30) }} />
+      <Icon name="coin" size={u(70)} />
+      <span ref={coinsRef} className="pp-text" style={{ fontSize: u(60) }}>
+        <span data-coins aria-hidden="true" className="pp-text-stroke" style={{ WebkitTextStrokeWidth: u(12) }} />
+        <span data-coins className="pp-text-fill" style={{ color: '#ffe14a' }} />
       </span>
     </div>
   )
 }
 
 /**
- * Where you are: the stage's name and your metres under the counter. Moved from the
- * frame-rate push state by a timer, never by React.
+ * Where you are: the stage's name and how far you've rolled, under the counter. Moved
+ * from the frame-rate roll state by a timer, never by React.
  */
-function Climb() {
+function Where() {
   const stageRef = useRef(null)
   const meterRef = useRef(null)
   useEffect(() => {
@@ -76,15 +88,15 @@ function Climb() {
     let shownMeter = -1
     const id = setInterval(() => {
       const meter = Math.max(0, push.meter)
-      // Up a slope, its stage's name; on the flat between two, SAFEZONE.
+      // Down a slope, its stage's name; on the flat past a tape, CHECKPOINT.
       const si = stageAt(meter)
-      const safe = meter > 0 && meter < TRACK_LENGTH && !isSlope(meter)
-      const key = safe ? 'safe' : si
+      const flat = meter > 0 && meter < TRACK_LENGTH && !isSlope(meter)
+      const key = flat ? 'flat' : si
       if (key !== shownStage && stageRef.current) {
         shownStage = key
-        for (const span of stageRef.current.querySelectorAll('[data-stage]')) span.textContent = safe ? 'SAFEZONE' : STAGES[si].name
+        for (const span of stageRef.current.querySelectorAll('[data-stage]')) span.textContent = flat ? 'CHECKPOINT' : STAGES[si].name
         const fill = stageRef.current.querySelector('[data-stage-fill]')
-        if (fill) fill.style.backgroundImage = safe ? SAFE_GRADIENT : stageGradient(si)
+        if (fill) fill.style.backgroundImage = flat ? SAFE_GRADIENT : stageGradient(si)
       }
       const m = Math.floor(meter)
       if (m !== shownMeter && meterRef.current) {
@@ -109,48 +121,61 @@ function Climb() {
   )
 }
 
-/** The last of your power: "LOW POWER!" shaking under the counter. */
-function LowPower() {
+/**
+ * Speed lines streaming in from the edges while you roll flat out - stronger in the burst
+ * off a smashed tape. On presets with them only (a full-screen overlay costs a weak phone
+ * more than it's worth). Faded by a timer from the frame-rate roll state, never by React.
+ */
+function SpeedLines() {
+  const on = useQuality((s) => s.settings.speedLines)
   const ref = useRef(null)
   useEffect(() => {
+    if (!on) return undefined
+    let shown = -1
     const id = setInterval(() => {
-      if (ref.current) ref.current.style.opacity = push.active && push.phase === 'push' && push.strain > 0.02 ? '1' : '0'
+      const el = ref.current
+      if (!el) return
+      const fast = push.active && push.phase === 'roll' ? Math.max(0, (push.speed - RUN_SPEED * 0.8) / (RUN_SPEED * 0.45)) : 0
+      const opacity = Math.round(Math.min(1, fast) * 20) / 20
+      if (opacity === shown) return
+      shown = opacity
+      el.style.opacity = String(opacity)
     }, UPDATE_MS)
     return () => clearInterval(id)
-  }, [])
-  return (
-    <div ref={ref} className="pp-shake pointer-events-none absolute left-1/2" style={{ top: u(186), marginLeft: u(-160), width: u(320), textAlign: 'center', opacity: 0 }}>
-      <span style={{ fontSize: u(44) }}>
-        <StrokeText stroke={u(10)} gradient={GRADIENTS.priceShort}>
-          LOW POWER!
-        </StrokeText>
-      </span>
-    </div>
-  )
+  }, [on])
+  if (!on) return null
+  return <div ref={ref} className="pp-speedlines pointer-events-none absolute inset-0" style={{ opacity: 0 }} />
 }
 
-/** The big message of the moment: a stage cleared, crushed, or THE TOP. */
+/** The big message of the moment: a tape smashed, out of Fat, or the end of the track. */
 function Banner() {
   const banner = useGame((s) => s.pushBanner)
   if (!banner) return null
-  const stage = STAGES[banner.stage]
-  if (banner.kind === 'crushed') {
+  if (banner.kind === 'blocked') {
     return (
-      <div key={banner.id} className="pp-banner pointer-events-none absolute left-1/2 top-[42%] flex flex-col items-center text-center">
-        <span style={{ fontSize: u(120) }}>
+      <div key={banner.id} className="pp-banner pointer-events-none absolute left-1/2 top-[38%] flex flex-col items-center text-center">
+        <span style={{ fontSize: u(104) }}>
           <StrokeText stroke={u(20)} gradient={GRADIENTS.priceShort}>
-            CRUSHED!
+            TOO STRONG!
           </StrokeText>
         </span>
-        <span className="flex items-center" style={{ fontSize: u(44), gap: u(8) }}>
-          <StrokeText stroke={u(9)}>{`The ${stage.boulder} needs`}</StrokeText>
-          <Icon name="muscle" size={u(56)} />
+        <span className="flex items-center" style={{ fontSize: u(46), gap: u(8) }}>
+          <StrokeText stroke={u(9)}>This tape needs</StrokeText>
+          <Icon name="fat" size={u(58)} />
           <StrokeText stroke={u(9)} gradient={GRADIENTS.gold}>
-            {formatNumber(banner.need)}
+            {`${formatNumber(banner.need)} Fat`}
+          </StrokeText>
+        </span>
+        <span className="flex items-center" style={{ fontSize: u(50), gap: u(10) }}>
+          <Icon name="tape" size={u(64)} />
+          <StrokeText stroke={u(10)}>{`${banner.tapes} ${banner.tapes === 1 ? 'tape' : 'tapes'} smashed`}</StrokeText>
+          <Icon name="coin" size={u(64)} />
+          <StrokeText stroke={u(10)} gradient={GRADIENTS.gold}>
+            {`+${formatNumber(banner.coins)}`}
           </StrokeText>
         </span>
         <span style={{ fontSize: u(36) }}>
-          <StrokeText stroke={u(8)}>Train more and try again!</StrokeText>
+          <StrokeText stroke={u(8)}>Eat more food to smash it!</StrokeText>
         </span>
       </div>
     )
@@ -158,35 +183,30 @@ function Banner() {
   const top = banner.kind === 'top'
   return (
     <div key={banner.id} className="pp-banner pointer-events-none absolute left-1/2 top-[40%] flex flex-col items-center text-center">
-      <span style={{ fontSize: u(top ? 120 : 96) }}>
-        <StrokeText stroke={u(18)} gradient={top ? GRADIENTS.rainbow : stageGradient(Math.min(STAGES.length - 1, banner.stage + 1))}>
-          {top ? 'YOU REACHED THE TOP!' : 'STAGE CLEARED!'}
+      <span style={{ fontSize: u(top ? 110 : 90) }}>
+        <StrokeText stroke={u(18)} gradient={top ? GRADIENTS.rainbow : stageGradient(Math.min(STAGES.length - 1, banner.stage ?? 0))}>
+          {top ? 'YOU ROLLED ALL THE WAY!' : banner.streak > 1 ? `TAPE SMASHED! x${banner.streak}` : 'TAPE SMASHED!'}
         </StrokeText>
       </span>
-      <span className="flex items-center" style={{ fontSize: u(70), gap: u(10) }}>
-        <Icon name="trophy" size={u(90)} />
+      <span className="flex items-center" style={{ fontSize: u(66), gap: u(10) }}>
+        <Icon name="coin" size={u(86)} />
         <StrokeText stroke={u(14)} gradient={GRADIENTS.gold}>
-          {`+${formatNumber(banner.wins)} Wins!`}
+          {`+${formatNumber(banner.coins)} Coins!`}
         </StrokeText>
       </span>
     </div>
   )
 }
 
-/** In a SAFEZONE: what to do next. */
-function FreeHint() {
-  const free = useGame((s) => s.climb === 'free')
-  const atBoulder = useGame((s) => s.zone.climbBoulder >= 0)
-  // Cashing in on a WINS pad (its banner's up): you're on your way back to the lobby.
-  const cashing = useGame((s) => s.pushBanner?.kind === 'clear')
-  // Only the guide says what to do up here: a new player, to take the Wins.
-  const guiding = useGame((s) => TUTORIAL[s.profile.tutorialStep]?.event === 'cashIn')
-  if (!free || atBoulder || cashing || !guiding) return null
+/** For a brand-new player's first rolls: how to steer. */
+function SteerHint() {
+  const guiding = useGame((s) => s.profile.tutorialStep <= 1)
+  const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+  if (!guiding) return null
   return (
-    // Down at the bottom over the Lobby button, clear of the signs up the track and the HUD at the top.
-    <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center" style={{ bottom: u(124), fontSize: u(32) }}>
-      <StrokeText stroke={u(7)} gradient={GRADIENTS.gold}>
-        Step on the WINS pad to get your Wins!
+    <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center" style={{ bottom: u(124), fontSize: u(touch ? 28 : 32), width: 'max-content', maxWidth: '64vw', lineHeight: 1.15 }}>
+      <StrokeText stroke={u(7)} gradient={GRADIENTS.gold} className="pp-wrap">
+        {touch ? 'Smash every tape your Fat is big enough for!' : 'Smash every tape your Fat is big enough for! (A / D to steer)'}
       </StrokeText>
     </div>
   )
@@ -223,21 +243,18 @@ function LobbyButton() {
   )
 }
 
-/** Up the mountain: your power, where you are, the warnings, the banners, and the way back. */
+/** Rolling down the track: your Fat and Coins, where you are, the banners, and the way back. */
 export function PushHud() {
   const pushing = useGame((s) => s.pushing)
-  // Crushed: the death card's Respawn is the way back, not the Lobby button.
-  const dead = useGame((s) => s.death !== null)
   if (!pushing) return null
   return (
     <>
-      <PowerCounter />
-      <Climb />
-      <LowPower />
-      <FreeHint />
+      <SpeedLines />
+      <FatCounter />
+      <Where />
+      <SteerHint />
       <Banner />
-      <DeathCard />
-      {!dead && <LobbyButton />}
+      <LobbyButton />
     </>
   )
 }

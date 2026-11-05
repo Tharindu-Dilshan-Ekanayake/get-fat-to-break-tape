@@ -8,10 +8,10 @@ import GiftTimer from './GiftTimer'
 import { Price } from './parts'
 import { GRADIENTS, u } from './style'
 
-/** X2 WINS only shows where there's room for it (it's in the Store too). */
+/** X2 COINS only shows where there's room for it (it's in the Store too). */
 const PASSES = [
-  { product: 'muscleX2', label: 'X2 MUSCLE', icon: 'muscle' },
-  { product: 'winsX2', label: 'X2 WINS', icon: 'trophy', className: 'pp-tall-only' },
+  { product: 'fatX2', label: 'X2 FAT', icon: 'fat' },
+  { product: 'coinsX2', label: 'X2 COINS', icon: 'coin', className: 'pp-tall-only' },
 ]
 
 /** Rainbow rays turning slowly behind a pass's icon. */
@@ -21,7 +21,7 @@ const RAYS = 'repeating-conic-gradient(from 0deg, #ff3b5c 0deg 10deg, #ffe53b 10
 function PassButton({ product, label, icon, className = '' }) {
   const item = SHOP[product]
   const owned = useGame((s) => Boolean(s.profile.passes[product]))
-  const afford = useGame((s) => s.profile.wins >= item.price)
+  const afford = useGame((s) => s.profile.coins >= item.price)
   return (
     <button
       type="button"

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Matrix4, Quaternion, Vector3 } from 'three'
 
 import { TUTORIAL } from '@shared/balance'
-import { DUMBBELL_PADS, EGG_STANDS, groundHeightAt, PUSH_ZONE, ZONE_HALF, ZONE_X, zoneCenterZ } from '@shared/world'
+import { benchSeat, EGG_STANDS, FOOD_COUNTER, FOOD_COURTS, groundHeightAt, PUSH_ZONE, seatYaw } from '@shared/world'
 
 import { getGame } from '../../store/game'
 import { createToyInstances, PropBuilder } from '../blocks'
@@ -15,12 +15,20 @@ const SPACING = 2.4
 /** Stop drawing arrows this close to the goal. */
 const ARRIVED = 3.5
 
+const egg = EGG_STANDS.find((s) => s.eggId === 'basic') ?? EGG_STANDS[0]
+/** The middle of the FREE court's bench, and the way its diners face (out over the table). */
+const seat = benchSeat(0, FOOD_COURTS[0].x, FOOD_COURTS[0].z)
+const facing = seatYaw(0)
+
 /** Ground point each tutorial step leads to. */
 const TARGETS = {
   push: { x: 0, z: (PUSH_ZONE.minZ + PUSH_ZONE.maxZ) / 2 },
-  zone0: { x: ZONE_X + ZONE_HALF.x - 3, z: zoneCenterZ(0) },
-  dumbbells: { x: DUMBBELL_PADS[1].x, z: DUMBBELL_PADS[1].z },
-  eggs: { x: EGG_STANDS[0].x, z: EGG_STANDS[0].z - 3.5 },
+  // Just in front of the FREE court's bench, over its table.
+  zone0: { x: seat.x + Math.sin(facing) * 1.2, z: seat.z + Math.cos(facing) * 1.2 },
+  // The spot in front of the food shop's counter, where the shop opens.
+  foods: { x: FOOD_COUNTER.x, z: FOOD_COUNTER.z },
+  // In front of the basic egg's stand, on the plaza side.
+  eggs: { x: egg.x + Math.sin(egg.yaw) * 3.5, z: egg.z + Math.cos(egg.yaw) * 3.5 },
 }
 
 const _m = new Matrix4()
@@ -84,7 +92,7 @@ export function TutorialArrows() {
     for (let d = 1.6 + offset; d < dist - 1 && count < MAX_CHEVRONS; d += SPACING) {
       const x = player.x + ux * d
       const z = player.z + uz * d
-      // Over the Train Zone pads and shop stages, not under them.
+      // Over the Food Court decks, not under them.
       _p.set(x, groundHeightAt(x, z) + 0.06, z)
       // Fade in near the player, shrink near the goal.
       const scale = Math.min(1, (d - 1.2) / 1.5) * Math.min(1, (dist - d) / 2)

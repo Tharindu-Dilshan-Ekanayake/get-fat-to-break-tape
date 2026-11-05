@@ -120,7 +120,7 @@ export class GameRoom extends Room {
     const player = new PlayerState()
     const spawnX = SPAWN.x + (Math.random() - 0.5) * 6
     const spawnZ = SPAWN.z + (Math.random() - 0.5) * 4
-    Object.assign(player, { name, uid: verified && !isGuestId(playerId) ? playerId : '', x: spawnX, y: 0, z: spawnZ, rotY: Math.PI, anim: 'idle', pushMeter: NOT_PUSHING })
+    Object.assign(player, { name, uid: verified && !isGuestId(playerId) ? playerId : '', x: spawnX, y: 0, z: spawnZ, rotY: SPAWN.yaw, anim: 'idle', pushMeter: NOT_PUSHING })
     this.state.players.set(client.sessionId, player)
 
     const session = new PlayerSession(profile, {
@@ -211,8 +211,8 @@ export class GameRoom extends Room {
   /** Hands a verified player's scores to the Boxity leaderboard reporter. */
   noteScores(member) {
     if (!member.verified) return
-    noteScores(member.playerId, member.session.profile, member.session.winsEarned)
-    member.session.winsEarned = 0
+    noteScores(member.playerId, member.session.profile, member.session.coinsEarned)
+    member.session.coinsEarned = 0
   }
 
   /** Everyone's scores here, for the reporter's next report. */
@@ -259,12 +259,12 @@ export class GameRoom extends Room {
     const player = this.state.players.get(sessionId)
     if (!member || !player) return
     const p = member.session.profile
-    if (player.muscle !== p.muscle) player.muscle = p.muscle
+    if (player.fat !== p.fat) player.fat = p.fat
     if (player.world !== p.world) player.world = p.world
-    if (player.wins !== p.wins) player.wins = p.wins
+    if (player.coins !== p.coins) player.coins = p.coins
     if (player.rebirths !== p.rebirths) player.rebirths = p.rebirths
     if (player.level !== p.level) player.level = p.level
-    if (player.dumbbellId !== p.equippedDumbbell) player.dumbbellId = p.equippedDumbbell
+    if (player.foodId !== p.equippedFood) player.foodId = p.equippedFood
     if (player.aura !== (p.equippedAura || '')) player.aura = p.equippedAura || ''
     const pets = p.equippedPets
       .map((uid) => p.pets.find((pet) => pet.uid === uid)?.id)

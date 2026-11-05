@@ -1,13 +1,15 @@
 import { useSyncExternalStore } from 'react'
-import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderTarget } from 'three'
+import { Color, DirectionalLight, Euler, HemisphereLight, PerspectiveCamera, Scene, Vector3, WebGLRenderTarget } from 'three'
 
 import { asToyInstance } from '../blocks'
+import { foodGeometry } from '../food'
 import { sharedMaterials } from '../materials'
 import { petGeometry } from './petModels'
 
 /**
- * Pet portraits for the UI, rendered from the same voxel models the world uses, so a
- * pet looks identical in the inventory and following you around.
+ * Pet and food portraits for the UI, rendered from the same models the world uses, so a
+ * pet looks identical in the inventory and following you around, and a food in the Food
+ * Shop just as it does in your hand.
  *
  * Rendered on demand into a small offscreen target with the game's own renderer (a
  * couple per frame at most), read back once, and kept as PNG data URLs. No image
@@ -46,8 +48,31 @@ function buildRig() {
   return { scene, camera, target, mesh, pixels: new Uint8Array(SIZE * SIZE * 4) }
 }
 
+/** Where a portrait's model sits: foods are fitted to the frame and turned to show off. */
+const FOOD_TURN = new Euler(0.35, -0.7, 0)
+const NO_TURN = new Euler(0, 0, 0)
+const _centre = new Vector3()
+/** The frame's middle, where the camera looks. */
+const LOOK_Y = 0.66
+
 function render(id) {
-  rig.mesh.geometry = petGeometry(id)
+  const mesh = rig.mesh
+  if (id.startsWith('food:')) {
+    const geometry = foodGeometry(id.slice(5))
+    if (!geometry.boundingSphere) geometry.computeBoundingSphere()
+    const { center, radius } = geometry.boundingSphere
+    const scale = 0.62 / Math.max(radius, 1e-3)
+    mesh.geometry = geometry
+    mesh.rotation.copy(FOOD_TURN)
+    mesh.scale.setScalar(scale)
+    _centre.copy(center).applyEuler(FOOD_TURN).multiplyScalar(scale)
+    mesh.position.set(-_centre.x, LOOK_Y - _centre.y, -_centre.z)
+  } else {
+    mesh.geometry = petGeometry(id)
+    mesh.rotation.copy(NO_TURN)
+    mesh.scale.setScalar(1)
+    mesh.position.set(0, 0, 0)
+  }
   const previousTarget = renderer.getRenderTarget()
   const previousClear = renderer.getClearColor(_previousClear)
   const previousAlpha = renderer.getClearAlpha()
@@ -116,4 +141,11 @@ function subscribe(fn) {
 export function usePetIcon(id) {
   request(id)
   return useSyncExternalStore(subscribe, () => urls.get(id) ?? null)
+}
+
+/** Portrait URL for a food (by FOODS id); null until it has been rendered. */
+export function useFoodIcon(id) {
+  const key = id ? `food:${id}` : null
+  request(key)
+  return useSyncExternalStore(subscribe, () => (key ? urls.get(key) ?? null : null))
 }

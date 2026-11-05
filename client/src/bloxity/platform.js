@@ -4,7 +4,7 @@ import { setAdBreak, setVolumes } from '../audio/sfx'
 import { loadEmotes, playEmote } from '../game/emotes'
 import { showChatBubble } from '../game/speechBubbles'
 import { resetCharacter } from '../game/push/pushControl'
-import { getGame, useGame } from '../store/game'
+import { getGame } from '../store/game'
 import { useQuality } from '../store/quality'
 import { safeCall, toUnsubscribe } from './sdk'
 import { useBloxityStore } from './store'
@@ -21,7 +21,9 @@ import { useBloxityStore } from './store'
  * - Player events: "Reset Character", emotes picked.
  * - Chat: each player's latest message over their head.
  * - Escape opens Boxity's menu (inside Boxity, where there's no Settings button of ours).
- * - Screen ads around a full-screen panel while it's open.
+ *
+ * The game never asks for ads itself: no banners over the screen while you play (panels
+ * like the Food Shop open as you walk about, so "ads round a panel" would be ads mid-play).
  */
 
 let sdkRef = null
@@ -116,17 +118,6 @@ export function startPlatform(sdk) {
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || e.repeat || !insideBoxity(sdk) || getGame().panel) return
     safeCall(() => sdk.portal?.showMenu?.(true))
-  })
-
-  // Screen ads: Boxity's banners around a full-screen panel while it's open.
-  let screen = null
-  useGame.subscribe((state, prev) => {
-    if (state.panel === prev.panel) return
-    if (state.panel && !screen) screen = safeCall(() => sdk.ads?.screen?.('panel')) ?? null
-    else if (!state.panel && screen) {
-      safeCall(() => screen.hide?.())
-      screen = null
-    }
   })
 }
 

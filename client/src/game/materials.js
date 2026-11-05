@@ -1,4 +1,4 @@
-import { Color, MeshLambertMaterial } from 'three'
+import { Color, MeshLambertMaterial, Vector2 } from 'three'
 
 /**
  * The toy-brick look, done in the shader instead of with textures.
@@ -49,11 +49,24 @@ export const STYLE = {
 /** Shared clock for animated styles; WorldClock advances it once per frame. */
 export const toyTime = { value: 0 }
 
+/**
+ * Where the breathing statue stands (x, z): vertices with a negative `aAnim.y` swell
+ * out from the vertical line through it and back, like a big belly breathing.
+ */
+export const toyBreathe = { value: new Vector2() }
+
 /** Cap colour for STYLE.TERRAIN blocks; the instance colour is the dirt underneath. */
 export const GRASS_COLOR = new Color('#4fd93a')
 
 const vertexHead = /* glsl */ `
   attribute float aStyle;
+  // A merged prop's own little animation, done here so it costs no draw call and no
+  // per-frame work on the CPU: (phase, amount). amount > 0 bobs it up and down by that
+  // much; amount < 0 breathes it in and out round uBreathe by that share. (0, 0) - what
+  // everything without the attribute gets - is still.
+  attribute vec2 aAnim;
+  uniform float uTime;
+  uniform vec2 uBreathe;
   varying vec3 vToyPos;
   varying vec3 vToyNormal;
   varying float vToyStyle;
@@ -81,6 +94,15 @@ const vertexBody = /* glsl */ `
   #else
     vToyDepth = vToyTop - vToyPos.y;
   #endif
+`
+
+const vertexAnim = /* glsl */ `
+  if (aAnim.y > 0.0) {
+    transformed.y += sin(uTime * 1.7 + aAnim.x) * aAnim.y;
+  } else if (aAnim.y < 0.0) {
+    float breath = 0.5 + 0.5 * sin(uTime * 2.2 + aAnim.x);
+    transformed.xz += (transformed.xz - uBreathe) * (-aAnim.y) * breath;
+  }
 `
 
 const fragmentHead = /* glsl */ `
@@ -265,21 +287,26 @@ export function createToyMaterial({
 } = {}) {
   const material = new MeshLambertMaterial({ color: 0xffffff, vertexColors, map })
 
+  // Meshes without an aAnim attribute read it as still, not as whatever another program
+  // left in that attribute slot.
+  material.defaultAttributeValues = { ...(material.defaultAttributeValues ?? {}), aAnim: [0, 0] }
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uStudScale = { value: studScale }
     shader.uniforms.uTime = toyTime
+    shader.uniforms.uBreathe = toyBreathe
     shader.uniforms.uGrass = { value: GRASS_COLOR }
     material.userData.shader = shader
 
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${vertexHead}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${vertexAnim}`)
       .replace('#include <project_vertex>', `#include <project_vertex>\n${vertexBody}`)
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${fragmentHead}`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${fragmentBody}`)
   }
   // The stud scale is a uniform, so materials differing only in it share a program.
-  material.customProgramCacheKey = () => 'toy-v3'
+  material.customProgramCacheKey = () => 'toy-v4'
   return material
 }
 

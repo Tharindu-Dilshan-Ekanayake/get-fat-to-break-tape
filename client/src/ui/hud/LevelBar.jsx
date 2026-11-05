@@ -1,5 +1,5 @@
 import { formatNumber } from '@shared/format'
-import { isMaxLevel, levelProgress, levelXp, musclePacks } from '@shared/logic'
+import { isMaxLevel, levelProgress, levelXp, fatPacks } from '@shared/logic'
 
 import { sfx } from '../../audio/sfx'
 import { actions } from '../../net/actions'
@@ -23,7 +23,8 @@ const BAR_FILL = 'linear-gradient(180deg, #c6ff7a 0%, #6fe03a 50%, #2fae2a 100%)
 const BAR_EMPTY = `radial-gradient(circle at 50% 45%, rgba(255,255,255,0.14) 0 28%, transparent 30%) 0 0 / ${u(22)} ${u(22)}, rgba(18, 24, 36, 0.62)`
 
 /**
- * "Level 5 ... 25/36": your level, and your Muscle into it against what it takes. At max
+ * "Level 5 ... 25/36": your level, and the Fat you've eaten into it against what it
+ * takes. At max
  * level it reads "Max" and opens the rebirth panel.
  */
 function Bar() {
@@ -53,18 +54,18 @@ function Bar() {
   )
 }
 
-/** A Muscle pack: "+140" by a flexing arm on the button, its price in Wins under the corner. */
+/** A Fat pack: "+140" by a drumstick on the button, its price in Coins under the corner. */
 function PackButton({ index, amount, price, afford }) {
   const buy = () => {
-    if (getGame().profile.wins < price) {
+    if (getGame().profile.coins < price) {
       sfx.error()
       return
     }
     actions.buyPack(index)
   }
   return (
-    <ChunkyButton gradient={PACK_GRADIENTS[index]} onClick={buy} title={`+${formatNumber(amount)} Muscle`} radius={6} border={5} style={{ width: u(204), height: u(60) }}>
-      <Icon name="muscle" size={u(82)} className="absolute" style={{ left: u(-26), top: u(-22) }} />
+    <ChunkyButton gradient={PACK_GRADIENTS[index]} onClick={buy} title={`+${formatNumber(amount)} Fat`} radius={6} border={5} style={{ width: u(204), height: u(60) }}>
+      <Icon name="fat" size={u(82)} className="absolute" style={{ left: u(-26), top: u(-22) }} />
       <span className="relative" style={{ fontSize: u(44), marginLeft: u(28) }}>
         <StrokeText stroke={u(10)}>+{formatNumber(amount)}</StrokeText>
       </span>
@@ -75,20 +76,20 @@ function PackButton({ index, amount, price, afford }) {
   )
 }
 
-/** Bottom centre: the level bar, and the three Muscle packs under it. */
+/** Bottom centre: the level bar, and the three Fat packs under it. */
 export function LevelBar() {
   const rebirths = useGame((s) => s.profile.rebirths)
   const level = useGame((s) => s.profile.level)
   const world = useGame((s) => s.profile.world)
-  const wins = useGame((s) => s.profile.wins)
-  const packs = musclePacks({ level, rebirths, world })
+  const coins = useGame((s) => s.profile.coins)
+  const packs = fatPacks({ level, rebirths, world })
 
   return (
-    <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ bottom: u(18), width: u(WIDTH), gap: u(14) }}>
+    <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ bottom: 'var(--levelbar-bottom)', width: u(WIDTH), maxWidth: '96vw', gap: u(14) }}>
       <Bar />
       <div className="flex justify-center" style={{ gap: u(26) }}>
         {packs.map((pack, i) => (
-          <PackButton key={i} index={i} amount={pack.amount} price={pack.price} afford={wins >= pack.price} />
+          <PackButton key={i} index={i} amount={pack.amount} price={pack.price} afford={coins >= pack.price} />
         ))}
       </div>
     </div>

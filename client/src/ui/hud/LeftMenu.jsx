@@ -40,16 +40,16 @@ export function LeftMenu() {
   const canRebirth = useGame((s) => isMaxLevel(s.profile))
   const petAlert = useGame((s) => s.profile.equippedPets.length < Math.min(MAX_EQUIPPED_PETS, s.profile.pets.length))
   const itemAlert = useGame((s) => Object.values(s.profile.items).some((n) => n > 0))
-  const profile = useGame((s) => s.profile)
   const now = useNow(10000)
-  const giftAlert = dailyStatus(profile, now).some((d) => d.state === 'ready')
+  // A boolean, not the profile: the menu re-renders when the alert changes, not on every bite.
+  const giftAlert = useGame((s) => dailyStatus(s.profile, now).some((d) => d.state === 'ready'))
   // Inside Boxity its menu has the settings, and its toolbar and chat take the top-left.
   const embedded = useBloxityStore((s) => s.embedded)
   const clear = useClearTop(0, 0.3)
 
   return (
     // As in the reference on a full-size screen; higher up on short ones (landscape
-    // phones), so it stays clear of the Wins and Muscle in the corner below.
+    // phones), so it stays clear of the Coins and Fat in the corner below.
     <div
       className="pointer-events-none absolute flex flex-col"
       style={{ left: u(18), top: `max(${u(150)}, min(${u(340)}, calc(100vh - ${u(760)})), ${clear + 8}px)`, gap: u(12) }}

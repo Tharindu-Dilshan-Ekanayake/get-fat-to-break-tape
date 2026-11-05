@@ -1,5 +1,5 @@
 /**
- * A full-screen white flash for cuts (back to the plaza after a push), done with a CSS
+ * A full-screen white flash for cuts (back to the plaza after a roll), done with a CSS
  * transition on one element the ScreenFade component registers here: no React renders.
  */
 let element = null

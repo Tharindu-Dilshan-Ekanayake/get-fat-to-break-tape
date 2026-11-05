@@ -15,9 +15,11 @@ import {
 
 import { mulberry32 } from '@shared/rng'
 
+import { useGame } from '../store/game'
 import { useQuality } from '../store/quality'
 import { CLOUDS, LIGHTS } from './sceneStyle'
 import { skyUniforms } from './skyState'
+import { useAfterPlayable } from './useAfterPlayable'
 
 /** Unit dome, scaled to just inside the camera's far plane for the current preset. */
 const SKY_RADIUS = 1
@@ -26,6 +28,8 @@ const SKY_RADIUS = 1
 const CLOUD_CENTER = [0, 0, -80]
 /** Radians per second the whole cloud field turns about its centre. */
 const CLOUD_DRIFT = 0.004
+/** The clouds' tint by world: white by day; dusky violet in World 2's night sky. */
+const CLOUD_TINTS = ['#ffffff', '#5b4c9c']
 
 const skyVertexShader = /* glsl */ `
   varying vec3 vDirection;
@@ -172,7 +176,10 @@ function buildCloudLayout(count) {
  * sky, where one mesh per puff cost ~100.
  */
 function Clouds() {
-  const count = useQuality((s) => s.settings.cloudCount)
+  // Not needed to start playing: drifted in once the game's up (see useAfterPlayable).
+  const settled = useAfterPlayable()
+  const count = useQuality((s) => s.settings.cloudCount) * (settled ? 1 : 0)
+  const world = useGame((s) => s.profile.world)
 
   const mesh = useMemo(() => {
     const layout = buildCloudLayout(count)
@@ -213,6 +220,11 @@ function Clouds() {
     },
     [mesh],
   )
+
+  // Tinted, not rebuilt: the vertex colours' shading stays, darkened for the night.
+  useEffect(() => {
+    mesh.material.color.set(CLOUD_TINTS[world] ?? CLOUD_TINTS[0])
+  }, [mesh, world])
 
   const ref = useRef(null)
   useFrame((_state, delta) => {

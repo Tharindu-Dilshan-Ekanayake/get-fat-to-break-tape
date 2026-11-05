@@ -172,7 +172,8 @@ export function SphinxShowcase() {
     updateWorldLabel('sphinx', sphinxLabelSpec(stock))
   }, [stock])
   useFrame((state) => {
-    if (ref.current) ref.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.6
+    // Turned to the plaza (its stand's yaw), looking this way and that.
+    if (ref.current) ref.current.rotation.y = SPHINX_STAND.yaw + Math.sin(state.clock.elapsedTime * 0.5) * 0.6
   })
   const mesh = useMemo(() => asToyInstance(petGeometry('sphinx'), sharedMaterials().toy), [])
   useEffect(() => () => mesh.dispose(), [mesh])
@@ -180,6 +181,9 @@ export function SphinxShowcase() {
 }
 
 export default Pets
+
+/** Which way the Free Reward crab faces, between its swings: north-west, at spawn and the plaza. */
+const CRAB_YAW = -Math.PI * 0.75
 
 /** The Free Reward stand's crab, bobbing on its pedestal by spawn. */
 export function RewardCrab() {
@@ -189,7 +193,8 @@ export function RewardCrab() {
     if (!mesh) return
     const t = state.clock.elapsedTime
     mesh.position.y = 1.15 + Math.abs(Math.sin(t * 2.2)) * 0.25
-    mesh.rotation.y = Math.sin(t * 0.8) * 0.5 + Math.PI * 0.15
+    // Looking out over spawn and the plaza (north-west), this way and that.
+    mesh.rotation.y = Math.sin(t * 0.8) * 0.5 + CRAB_YAW
   })
   const crab = useMemo(() => asToyInstance(petGeometry('crab'), sharedMaterials().toy), [])
   useEffect(() => () => crab.dispose(), [crab])

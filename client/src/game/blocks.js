@@ -147,9 +147,11 @@ export class PropBuilder {
   /**
    * @param {BufferGeometry} geometry template; not modified
    * @param {{ position?: number[], rotation?: number[], scale?: number|number[],
-   *           color?: string, style?: number }} options rotation is Euler XYZ radians
+   *           color?: string, style?: number, anim?: number[] }} options rotation is
+   *   Euler XYZ radians; `anim` is [phase, amount] for the toy shader's own animation
+   *   (amount > 0 bobs, < 0 breathes: see materials.js)
    */
-  add(geometry, { position = [0, 0, 0], rotation = [0, 0, 0], scale = 1, color = '#ffffff', style = STYLE.SMOOTH } = {}) {
+  add(geometry, { position = [0, 0, 0], rotation = [0, 0, 0], scale = 1, color = '#ffffff', style = STYLE.SMOOTH, anim = null } = {}) {
     const g = geometry.index ? geometry.toNonIndexed() : geometry.clone()
     for (const name of Object.keys(g.attributes)) {
       if (name !== 'position' && name !== 'normal') g.deleteAttribute(name)
@@ -176,6 +178,7 @@ export class PropBuilder {
     }
     g.setAttribute('color', new BufferAttribute(colors, 3))
     g.setAttribute('aStyle', new BufferAttribute(styles, 1))
+    if (anim) g.userData.anim = anim
     this.parts.push(g)
     return this
   }
@@ -187,6 +190,19 @@ export class PropBuilder {
 
   build() {
     if (this.parts.length === 0) return null
+    // Every part gets the animation attribute (merging needs the same attributes all
+    // round): its own [phase, amount] if it has one, still otherwise.
+    for (const part of this.parts) {
+      if (part.getAttribute('aAnim')) continue
+      const n = part.getAttribute('position').count
+      const [phase, amount] = part.userData.anim ?? [0, 0]
+      const anim = new Float32Array(n * 2)
+      for (let i = 0; i < n; i += 1) {
+        anim[i * 2] = phase
+        anim[i * 2 + 1] = amount
+      }
+      part.setAttribute('aAnim', new BufferAttribute(anim, 2))
+    }
     const merged = mergeGeometries(this.parts, false)
     for (const part of this.parts) part.dispose()
     this.parts = []

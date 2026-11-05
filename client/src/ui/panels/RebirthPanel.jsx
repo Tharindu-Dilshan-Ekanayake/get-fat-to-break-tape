@@ -29,17 +29,17 @@ function StatCard({ icon, text, after }) {
         </StrokeText>
       </span>
       <Icon name={icon} size={u(84)} />
-      <span style={{ fontSize: u(text.length > 11 ? 26 : 32) }}>
+      <span style={{ fontSize: u(text.length > 13 ? 23 : text.length > 11 ? 26 : 32) }}>
         <StrokeText stroke={u(7)}>{text}</StrokeText>
       </span>
     </div>
   )
 }
 
-/** The best Train Zone `rebirths` rebirths open (the ones bought with Wins aside). */
+/** The best Food Court `rebirths` rebirths open (the ones bought with Coins aside). */
 const bestZone = (rebirths) => TRAIN_ZONES.filter((z) => !z.product && z.rebirths <= rebirths).at(-1)
 
-/** One rebirth's numbers: its max level, walking speed, Muscle multiplier and best gym. */
+/** One rebirth's numbers: its max level, walking speed, Fat multiplier and best Food Court. */
 function Column({ rebirths, after }) {
   return (
     <div className="flex flex-col items-center" style={{ gap: u(10) }}>
@@ -49,8 +49,8 @@ function Column({ rebirths, after }) {
       <div className="grid w-full grid-cols-2" style={{ gap: u(10) }}>
         <StatCard icon="starGold" text={`Level ${levelCap(rebirths)}`} after={after} />
         <StatCard icon="fastForward" text={`${walkSpeed(levelCap(rebirths), rebirths).toFixed(1)} Speed`} after={after} />
-        <StatCard icon="muscle" text={`${formatMultiplier(rebirthMultiplier(rebirths))} Muscle`} after={after} />
-        <StatCard icon="dumbbell" text={`${bestZone(rebirths).mult}X Gym`} after={after} />
+        <StatCard icon="fat" text={`${formatMultiplier(rebirthMultiplier(rebirths))} Fat`} after={after} />
+        <StatCard icon="food" text={`${bestZone(rebirths).mult}X Food Court`} after={after} />
       </div>
     </div>
   )
@@ -58,8 +58,9 @@ function Column({ rebirths, after }) {
 
 /**
  * Rebirth, as in the reference: this rebirth's numbers against the next one's (max
- * level, speed, Muscle multiplier), your progress to max level, and the Rebirth button
- * once you're there - or Skip, for Wins, before then. Rebirth resets your Muscle.
+ * level, speed, Fat multiplier, best Food Court), your progress to max level, and the
+ * Rebirth button once you're there - or Skip, for Coins, before then. Rebirth resets your
+ * Fat and level; Coins, food and pets stay.
  */
 export function RebirthPanel() {
   const rebirths = useGame((s) => s.profile.rebirths)
@@ -67,12 +68,12 @@ export function RebirthPanel() {
   const progress = useGame((s) => rebirthProgress(s.profile))
   const ready = useGame((s) => isMaxLevel(s.profile))
   const skipPrice = useGame((s) => rebirthSkipPrice(s.profile))
-  const canSkip = useGame((s) => s.profile.wins >= skipPrice)
+  const canSkip = useGame((s) => s.profile.coins >= skipPrice)
   const autoRebirth = useGame((s) => s.profile.settings.autoRebirth)
   const cap = levelCap(rebirths)
 
   const skip = () => {
-    if (getGame().profile.wins < skipPrice) {
+    if (getGame().profile.coins < skipPrice) {
       sfx.error()
       return
     }
@@ -124,7 +125,7 @@ export function RebirthPanel() {
 
       <p className="m-0 text-center" style={{ fontSize: u(46), marginTop: u(16) }}>
         <StrokeText stroke={u(9)} gradient={GRADIENTS.priceShort}>
-          Rebirth resets your Muscle!
+          Rebirth resets your Fat and level!
         </StrokeText>
       </p>
 

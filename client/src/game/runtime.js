@@ -14,8 +14,8 @@ import { SPAWN } from '@shared/world'
 export const runtime = {
   player: {
     position: new Vector3(SPAWN.x, 0, SPAWN.z),
-    /** Facing, radians about +Y. PI faces north (-Z), towards the boulder. */
-    yaw: Math.PI,
+    /** Facing, radians about +Y. 0 faces south (+Z): at spawn, the Food Street. */
+    yaw: SPAWN.yaw,
     speed: 0,
     grounded: true,
     /** The Train Zone whose bench you're sat on, or -1. */
@@ -26,8 +26,17 @@ export const runtime = {
     anim: 'idle',
     /** Set when the controller should ignore input (pushing, cutscenes). */
     frozen: false,
-    /** performance.now() of the last lift, for the curl. */
-    liftedAt: 0,
+    /** performance.now() of the last bite (a click), for the hand to the mouth. */
+    ateAt: 0,
+    /** performance.now() of the last bite taken at a Food Court table: the belly wobbles. */
+    jiggleAt: 0,
+    /** How big your character is drawn (fatter is bigger): 1 skinny. */
+    drawnSize: 1,
+    /** performance.now() of the last happy hop (a purchase, a level up) and rebirth spin; 0 for none. */
+    happyAt: 0,
+    spinAt: 0,
+    /** performance.now() of the last size milestone: the belly puffs up, big and wobbly. */
+    puffAt: 0,
     /** The Boxity emote playing: `{ id, at }` (at = performance.now() it started), or null. */
     emote: null,
   },
@@ -40,9 +49,10 @@ export const runtime = {
   },
 
   camera: {
-    /** 'follow' orbits the player; 'push' is the chase camera up the track (see push/Push.jsx). */
+    /** 'follow' orbits the player; 'push' is the chase camera down the track (see FollowCamera). */
     mode: 'follow',
-    yaw: 0,
+    /** Where round the player it orbits: 0 is south of them. Starts behind you, as you spawn facing the Food Street. */
+    yaw: SPAWN.yaw + Math.PI,
     pitch: 0.36,
     distance: 11,
     /** Set to jump the follow camera straight to its target next frame. */
@@ -71,5 +81,5 @@ export const runtime = {
 /** Puts the player back at spawn, e.g. after a reconnect into a fresh lobby. */
 export function respawn() {
   runtime.player.position.set(SPAWN.x, 0, SPAWN.z)
-  runtime.player.yaw = Math.PI
+  runtime.player.yaw = SPAWN.yaw
 }

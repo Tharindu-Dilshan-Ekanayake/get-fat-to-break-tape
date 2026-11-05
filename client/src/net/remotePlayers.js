@@ -27,7 +27,7 @@ export function upsertRemotePlayer(sessionId, state) {
       yaw: state.rotY,
       speed: 0,
       anim: 'idle',
-      dumbbellId: 'wood',
+      foodId: 'wood',
       aura: '',
       /** Their avatar's outfit, parsed from `look`; `lookKey` is the raw string. */
       look: null,
@@ -51,9 +51,9 @@ export function upsertRemotePlayer(sessionId, state) {
       /** Walking a SAFEZONE: which way they face, and how fast they go. */
       climbYaw: Math.PI,
       climbSpeed: 0,
-      /** Their Muscle, and when it last went up (they're lifting: curl). */
-      muscle: state.muscle || 0,
-      liftedAt: 0,
+      /** Their Fat, and when it last went up (they're lifting: curl). */
+      fat: state.fat || 0,
+      ateAt: 0,
       /** Where they're drawn: up the track while pushing, else in the plaza. */
       shownAt: new Vector3(state.x, state.y, state.z),
     }
@@ -70,10 +70,10 @@ export function upsertRemotePlayer(sessionId, state) {
     r.emote = state.emote || ''
     r.emoteStart = performance.now()
   }
-  r.dumbbellId = state.dumbbellId || 'wood'
+  r.foodId = state.foodId || 'wood'
   r.aura = state.aura || ''
-  if (state.muscle > r.muscle) r.liftedAt = performance.now()
-  r.muscle = state.muscle
+  if (state.fat > r.fat) r.ateAt = performance.now()
+  r.fat = state.fat
   r.world = state.world || 0
   // Climbing in another world: not on this mountain (and not in the plaza either).
   const pushing = state.pushMeter > NOT_PUSHING && r.world === WORLD
