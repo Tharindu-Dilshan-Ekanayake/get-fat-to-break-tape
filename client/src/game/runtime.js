@@ -35,6 +35,8 @@ export const runtime = {
     /** performance.now() of the last happy hop (a purchase, a level up) and rebirth spin; 0 for none. */
     happyAt: 0,
     spinAt: 0,
+    /** performance.now() of the last size milestone: the belly puffs up, big and wobbly. */
+    puffAt: 0,
     /** The Boxity emote playing: `{ id, at }` (at = performance.now() it started), or null. */
     emote: null,
   },

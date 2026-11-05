@@ -27,7 +27,7 @@ Where each piece of the Boxity integration lives:
 | --- | --- |
 | Environment (prod / stage / local), every Boxity URL | `client/src/bloxity/env.js`, `server/src/boxity.js` |
 | Sign-in, avatar and proportions (the one `onUserChanged`) | `client/src/bloxity/BloxityProvider.jsx` |
-| Emotes, leaderboards, settings, ad breaks, player events, chat, Escape menu, screen ads | `client/src/bloxity/platform.js` |
+| Emotes, leaderboards, settings, ad breaks (Boxity's own: the game pauses and goes quiet; it never requests ads or screen banners itself), player events, chat, Escape menu | `client/src/bloxity/platform.js` |
 | Hair, masks, neck / chest / waist / hand / shoe items, custom characters | `client/src/game/avatarItems.js`, `client/src/game/PlayerAvatar.jsx` |
 | Emote playback | `client/src/game/emotes.js`, `avatarRig.applyEmote` |
 | Chat bubbles | `client/src/game/speechBubbles.js`, `client/src/game/ChatBubbles.jsx` |

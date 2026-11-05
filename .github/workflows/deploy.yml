@@ -31,8 +31,8 @@ on:
 
 env:
   GAME_ID: get-fat-to-break-tape
-  # Players per room (the Colyseus room's maxClients). Boxity decides how many rooms a
-  # pod holds from the CPU each player takes.
+  # Players per room (the Colyseus room's maxClients), sent as Legion's seatCap: when a
+  # pod fills to it, the matchmaker starts another.
   ROOM_SIZE: 8
 
 concurrency:
@@ -102,7 +102,7 @@ jobs:
           curl -sS --fail-with-body -X POST "$LEGION_URL/v1/apps/$GAME_ID/deploy" \
             -H "Authorization: Bearer $DEPLOY_TOKEN" \
             -H 'Content-Type: application/json' \
-            -d "{\"channel\":\"${{ steps.meta.outputs.channel }}\",\"image\":\"${{ steps.meta.outputs.image }}\",\"version\":\"$GITHUB_SHA\",\"roomSize\":$ROOM_SIZE}"
+            -d "{\"channel\":\"${{ steps.meta.outputs.channel }}\",\"image\":\"${{ steps.meta.outputs.image }}\",\"version\":\"$GITHUB_SHA\",\"seatCap\":$ROOM_SIZE}"
 
       - uses: actions/setup-node@v4
         with:

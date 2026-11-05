@@ -1,11 +1,13 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useState } from 'react'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 import { useGame } from '../../store/game'
 import { useQuality } from '../../store/quality'
 import { asToyInstance, BlockSet, disposeBlocks, PropBuilder } from '../blocks'
 import { glowTime } from '../glow'
 import { createToyMaterial, sharedMaterials, toyTime } from '../materials'
+import { useAfterPlayable } from '../useAfterPlayable'
 import { buildNeonTrims, buildRunway, createGroundGeometry, createGroundMap } from './ground'
 import { buildEggStands } from './eggs'
 import { buildFoodCourts } from './foodCourts'
@@ -19,6 +21,16 @@ import { buildFoodHut, buildStands, buildStatue, buildTownSquare } from './struc
 import { buildTerrain } from './terrain'
 import { buildWaterfall } from './waterfall'
 
+/** Merges `extra` into the props mesh's geometry (one mesh, one draw call), freeing both old ones. */
+function addToProps(mesh, extra) {
+  const before = mesh.geometry
+  mesh.geometry = mergeGeometries([before, extra], false)
+  mesh.geometry.computeBoundingSphere()
+  mesh.computeBoundingSphere()
+  before.dispose()
+  extra.dispose()
+}
+
 /**
  * The static lobby, "Snack Town": ground plane, every box (mountains, trees, the Food
  * Courts' restaurants, the food shop's hut, the champion's square, stands, the statue,
@@ -26,6 +38,11 @@ import { buildWaterfall } from './waterfall'
  * (round plinths and flower beds, the egg stands' wings, the statue's body, the giant
  * foods on the roofs and the hut's counter...) merged into one mesh. Three draw calls
  * for the whole environment.
+ *
+ * The decoration - the giant foods on the roofs and the hut, the champion's body, the
+ * painted signs - is left until the game's playable (useAfterPlayable) and merged into
+ * the props mesh then: it was most of the lobby's build time, and nobody needs it to
+ * start playing.
  *
  * Built once per world: World 1 is the bright day town, World 2 the same town by night
  * as a neon diner in space (palette.js). Stepping through the portal changes the world
@@ -36,6 +53,7 @@ import { buildWaterfall } from './waterfall'
 export function World() {
   const shadows = useQuality((s) => s.settings.shadows === 'realtime')
   const world = useGame((s) => s.profile.world)
+  const settled = useAfterPlayable()
   const [signs, setSigns] = useState([])
 
   // Drives every animated toy-material style (water...).
@@ -45,6 +63,7 @@ export function World() {
   })
 
   useEffect(() => {
+    if (!settled) return undefined
     let made = []
     let cancelled = false
     const dispose = (list) => {
@@ -66,9 +85,9 @@ export function World() {
       cancelled = true
       dispose(made)
     }
-  }, [])
+  }, [settled])
 
-  const { blocks, ground, props } = useMemo(() => {
+  const { blocks, ground, props, decorTasks } = useMemo(() => {
     performance.mark('pp:world-start')
     const { decorDensity, maxTexture } = useQuality.getState().settings
     const palette = lobbyPalette(world)
@@ -80,13 +99,16 @@ export function World() {
     // LOW leaves out the small stuff: jars, knobs, cups' straws, bulbs, a few flowers.
     const detail = decorDensity >= 0.75
     const propBuilder = new PropBuilder()
-    buildFoodCourts(set, propBuilder, { detail, palette })
-    buildFoodHut(set, propBuilder, { detail, palette })
-    buildTownSquare(set, propBuilder, { detail, palette })
+    // Decoration queued for later (see the effect below): `later(builder => ...)`.
+    const decorTasks = []
+    const decor = { later: (task) => decorTasks.push(task) }
+    buildFoodCourts(set, propBuilder, { detail, palette, decor })
+    buildFoodHut(set, propBuilder, { detail, palette, decor })
+    buildTownSquare(set, propBuilder, { detail, palette, decor })
     buildGarden(set, propBuilder, { detail, palette })
     buildPushZone(set, { world })
     buildStands(set)
-    buildStatue(set, propBuilder, { palette })
+    buildStatue(set, propBuilder, { palette, decor })
     buildPortalFrame(set)
     buildWaterfall(set, palette)
     buildEggStands(set, propBuilder)
@@ -99,8 +121,19 @@ export function World() {
       blocks: set.build(sharedMaterials().blocks),
       props: asToyInstance(propBuilder.build(), sharedMaterials().toy),
       ground: { geometry: createGroundGeometry(), material: groundMaterial, map },
+      decorTasks,
     }
   }, [world])
+
+  // Once the game's playable, the decoration is built and merged into the props mesh -
+  // still one draw call.
+  useEffect(() => {
+    if (!settled || decorTasks.length === 0) return
+    const builder = new PropBuilder()
+    for (const task of decorTasks.splice(0)) task(builder)
+    const extra = builder.build()
+    if (extra) addToProps(props, extra)
+  }, [settled, decorTasks, props])
 
   // Frees the last world's lobby when it's rebuilt (and this one on unmount).
   useEffect(

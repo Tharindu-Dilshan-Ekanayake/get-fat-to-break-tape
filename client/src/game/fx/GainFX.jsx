@@ -67,10 +67,13 @@ function showGain(event) {
     runtime.player.jiggleAt = performance.now() + 250
   }
   if (!rolling) {
-    // Crumbs off the bite (particle presets only), and a table bite wobbles the belly.
-    mouth(_at)
-    burst({ x: _at.x, y: _at.y, z: _at.z, count: 7, speed: 2.6, palette: 'crumbs' })
-    if (event.source === 'zone') runtime.player.jiggleAt = performance.now()
+    // A table bite: crumbs off it (particle presets only) and a wobble of the belly. A
+    // click's bite throws its crumbs on each chomp (the Player).
+    if (event.source === 'zone') {
+      mouth(_at)
+      burst({ x: _at.x, y: _at.y, z: _at.z, count: 7, speed: 2.6, palette: 'crumbs' })
+      runtime.player.jiggleAt = performance.now()
+    }
   }
   // Grown past a milestone with this bite: say so.
   const before = (event.fat ?? 0) - event.gain
@@ -80,6 +83,7 @@ function showGain(event) {
     spawnPopup(passed.text, _at, { gradient: passed.gradient, scale: 2.1, life: 2000, follow })
     burst({ x: at.x, y: at.y + 2.2, z: at.z, count: 50, speed: 8, palette: 'confetti' })
     sfx.chonk()
+    runtime.player.puffAt = performance.now()
   }
   if (event.leveledUp) {
     if (!rolling) runtime.player.happyAt = performance.now()

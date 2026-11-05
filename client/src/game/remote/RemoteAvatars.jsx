@@ -25,8 +25,8 @@ const MAX_SPEED = walkSpeed()
 const DOWNHILL_YAW = Math.PI
 /** Curled up, the middle of the ball above the feet's standing spot (skinny -> fat), as for yours. */
 const BALL_MIDDLE = [0.95, 1.2]
-/** A bite (hand to mouth) takes this long, as for your own character. */
-const CURL_MS = 420
+/** A bite (up to the mouth, three chomps, down) takes this long, as for your own character. */
+const CURL_MS = 640
 
 const _up = new Vector3(0, 1, 0)
 

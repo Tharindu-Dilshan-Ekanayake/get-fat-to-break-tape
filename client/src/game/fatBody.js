@@ -16,13 +16,19 @@ import { BoxGeometry, BufferAttribute, BufferGeometry } from 'three'
  * Profiles are keyframes up the part, from its bottom (t 0) to its top (t 1):
  * [t, half-width, half-depth, out (away from the body's middle), forward], in the
  * rig's bind-pose units (the whole avatar is 6.4 tall, its parts' boxes 2.4).
+ *
+ * The fat build is funny fat, too: `creases` [t, depth, width, front] pinch it in round
+ * the part - the rolls of belly between them bulge out by contrast, a chubby wrist and
+ * knee - with `front` 1 only round the front and sides (a smooth back), 0 all the way
+ * round; `handles` [t, width, amount] push love handles out of both sides. They grow in
+ * with the morph, like the rest of the fat.
  */
 
 const SHAPES = {
   torso: {
     bones: 1,
-    around: [6, 4],
-    along: 10,
+    around: [8, 6],
+    along: 28,
     skinny: {
       keys: [
         [0, 0.72, 0.42, 0, 0],
@@ -35,26 +41,39 @@ const SHAPES = {
       top: 0.12,
       bottom: 0.08,
     },
-    // A big round belly: wide hips, the tummy bulging out in front low down, a soft chest
-    // and round shoulders sloping into the neck.
+    // A blob: a huge round belly far wider than the body is tall - bulging out in front,
+    // sagging low over the thighs, a big round back - with shoulders that slope straight
+    // up into the head (no neck left).
     fat: {
       keys: [
-        [0, 1.55, 1.2, 0, 0.15],
-        [0.18, 1.98, 1.72, 0, 0.5],
-        [0.4, 2.18, 2.0, 0, 0.72],
-        [0.62, 2.02, 1.74, 0, 0.5],
-        [0.82, 1.86, 1.32, 0, 0.2],
-        [0.94, 1.74, 1.06, 0, 0.05],
-        [1, 1.28, 0.82, 0, 0],
+        [0, 2.55, 2.3, 0, 0.55],
+        [0.16, 2.85, 2.65, 0, 0.95],
+        [0.36, 2.92, 2.8, 0, 1.05],
+        [0.58, 2.75, 2.5, 0, 0.8],
+        [0.8, 2.4, 1.95, 0, 0.38],
+        [0.94, 1.95, 1.45, 0, 0.12],
+        [1, 1.3, 0.92, 0, 0],
       ],
-      top: 0.32,
-      bottom: 0.5,
+      top: 0.7,
+      bottom: 2.2,
+      // Two big rolls of belly - the bottom one hanging over the belt - and a soft line
+      // under the chest, round the front and sides only (the back stays smooth); a love
+      // handle spilling out of each side at the waist.
+      creases: [
+        [0.12, 0.2, 0.055, 1],
+        [0.4, 0.13, 0.055, 1],
+        [0.68, 0.07, 0.05, 1],
+      ],
+      handles: [
+        [0.22, 0.09, 0.12],
+        [0.46, 0.07, 0.05],
+      ],
     },
   },
   arm: {
     bones: 2,
     around: [3, 3],
-    along: 14,
+    along: 20,
     // Hand, wrist, forearm, elbow, upper arm, shoulder.
     skinny: {
       keys: [
@@ -72,22 +91,27 @@ const SHAPES = {
     // Chubby hands and soft sausage arms, plumpest at the top.
     fat: {
       keys: [
-        [0, 0.52, 0.56, 0, 0.02],
-        [0.1, 0.48, 0.52, 0, 0],
-        [0.3, 0.7, 0.72, 0, 0],
-        [0.5, 0.72, 0.75, 0, 0],
-        [0.72, 0.86, 0.88, 0.02, 0],
-        [0.9, 0.92, 0.92, 0.05, 0],
-        [1, 0.76, 0.76, 0.05, 0],
+        [0, 0.55, 0.6, 0, 0.02],
+        [0.1, 0.5, 0.55, 0, 0],
+        [0.3, 0.74, 0.76, 0, 0],
+        [0.5, 0.78, 0.8, 0, 0],
+        [0.72, 0.9, 0.92, 0.02, 0],
+        [0.9, 0.94, 0.94, 0.04, 0],
+        [1, 0.76, 0.76, 0.04, 0],
       ],
-      top: 0.36,
+      top: 0.28,
       bottom: 0.26,
+      // A baby-fat wrist and elbow.
+      creases: [
+        [0.15, 0.16, 0.04, 0],
+        [0.5, 0.1, 0.04, 0],
+      ],
     },
   },
   leg: {
     bones: 2,
     around: [3, 3],
-    along: 12,
+    along: 18,
     // Foot, ankle, calf, knee, thigh, hip.
     skinny: {
       keys: [
@@ -104,15 +128,20 @@ const SHAPES = {
     // Chunky calves and big round thighs.
     fat: {
       keys: [
-        [0, 0.5, 0.6, 0, 0.12],
-        [0.08, 0.5, 0.55, 0, 0.02],
-        [0.3, 0.72, 0.76, 0, -0.02],
-        [0.5, 0.78, 0.8, 0, 0],
-        [0.76, 0.96, 1.0, 0.04, 0.05],
-        [1, 1.0, 1.0, 0, 0],
+        [0, 0.56, 0.66, 0, 0.12],
+        [0.08, 0.56, 0.6, 0, 0.02],
+        [0.3, 0.86, 0.9, 0, -0.02],
+        [0.5, 0.92, 0.96, 0, 0],
+        [0.76, 1.1, 1.14, 0.04, 0.05],
+        [1, 1.15, 1.15, 0, 0],
       ],
       top: 0.15,
       bottom: 0,
+      // Chubby ankles and knees.
+      creases: [
+        [0.13, 0.14, 0.04, 0],
+        [0.5, 0.08, 0.045, 0],
+      ],
     },
   },
 }
@@ -132,7 +161,7 @@ export const FAT_SLOTS = Object.keys(PARTS)
  * so the limbs stay at the sides of the body however round it is, and how tall it
  * stands: [skinny, fat], blended like the morph.
  */
-export const BODY_OFFSETS = { shoulder: [-0.84, 0.42], hip: [-0.32, 0.3], tall: [0.95, 1.04] }
+export const BODY_OFFSETS = { shoulder: [-0.84, 1.15], hip: [-0.32, 0.85], tall: [0.95, 0.98] }
 
 /**
  * How much of each box face's texture the rounded part shows, from the face's middle:
@@ -151,6 +180,27 @@ function profile(keys, t, c) {
   const e = keys[Math.min(keys.length - 1, i + 2)][c]
   const u = Math.min(1, Math.max(0, (t - keys[i][0]) / (keys[i + 1][0] - keys[i][0])))
   return b + 0.5 * u * (d - a + u * (2 * a - 5 * b + 4 * d - e + u * (3 * (b - d) + e - a)))
+}
+
+/**
+ * A build's rolls and love handles (see SHAPES) at height `t` up the part, angle `theta`
+ * round it (+z the front): how much to scale its half-width and half-depth there, into
+ * `out` [x, z].
+ */
+function rollsAt(build, t, theta, out) {
+  const c = Math.cos(theta)
+  // How much a front-biased crease shows here: all of it on the belly, most of it at the
+  // sides, none on the back.
+  const front = Math.min(1, 1.2 * Math.max(0, Math.sin(theta)) + 0.6 * c * c)
+  let k = 1
+  for (const [at, depth, width, bias] of build.creases ?? []) {
+    k -= depth * (1 + (front - 1) * bias) * Math.exp(-(((t - at) / width) ** 2))
+  }
+  let handles = 0
+  for (const [at, width, amount] of build.handles ?? []) handles += amount * Math.exp(-(((t - at) / width) ** 2))
+  out[0] = k * (1 + handles * c * c)
+  out[1] = k
+  return out
 }
 
 const smoothstep = (a, b, x) => {
@@ -258,6 +308,7 @@ function buildPart(part, source, bones) {
   const skinWeight = []
   const index = []
   const p = { x: 0, y: 0, z: 0 }
+  const roll = [1, 1]
 
   FACES.forEach((face, f) => {
     // Grid resolution: across the face (its in-plane a axis) and along b.
@@ -286,8 +337,9 @@ function buildPart(part, source, bones) {
         const t = Math.min(1, Math.max(0, (p.y - y0) / (y1 - y0)))
         const cap = face.axis === 'y' ? face.dir : 0
         builds.forEach((build, k) => {
-          const rx = profile(build.keys, t, 1)
-          const rz = profile(build.keys, t, 2)
+          rollsAt(build, t, theta, roll)
+          const rx = profile(build.keys, t, 1) * roll[0]
+          const rz = profile(build.keys, t, 2) * roll[1]
           const dome = cap > 0 ? build.top : cap < 0 ? -build.bottom : 0
           positions[k].push(
             cx + part.side * profile(build.keys, t, 3) + rho * rx * Math.cos(theta),

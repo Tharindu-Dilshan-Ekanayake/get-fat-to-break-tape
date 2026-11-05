@@ -436,6 +436,19 @@ export const sfx = {
     tone(150 - 85 * w + Math.random() * 15, { duration: 0.09 + 0.08 * w, volume: 0.035 + 0.075 * w, slideTo: 55 })
     noise({ duration: 0.05 + 0.04 * w, volume: 0.02 + 0.03 * w, from: 700, to: 250, q: 0.8 })
   },
+  /** Swallowing a big bite: a deep, wet GULP sliding down. */
+  gulp() {
+    if (!ready('gulp', 150)) return
+    tone(260, { type: 'sine', duration: 0.16, volume: 0.13, slideTo: 90, attack: 0.02 })
+    tone(140, { type: 'triangle', at: 0.05, duration: 0.12, volume: 0.06, slideTo: 60 })
+    noise({ at: 0.02, duration: 0.08, volume: 0.04, from: 600, to: 200, q: 2 })
+  },
+  /** A pat on a full belly, `weight` 0-1 how fat: a soft, round thump - deeper the bigger. */
+  pat(weight = 0) {
+    if (!ready('pat', 120)) return
+    const w = Math.min(1, Math.max(0, weight))
+    tone(210 - 90 * w, { type: 'sine', duration: 0.09, volume: 0.07 + 0.05 * w, slideTo: 120 - 50 * w })
+  },
   /** A big, rude, happy BURP - every so often after a lot of eating. */
   burp() {
     if (!ready('burp', 4000)) return

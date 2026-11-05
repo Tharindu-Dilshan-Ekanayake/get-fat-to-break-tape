@@ -144,7 +144,7 @@ function planter(blocks, x, z, yaw, palette, k, detail) {
  * front, bunting from the roof out to the lanterns, crates round the side. Only the hut itself is solid (FOOD_HUT); walking up to the counter
  * (FOOD_COUNTER) opens the shop. Lantern light in `palette`'s lamp colours.
  */
-export function buildFoodHut(blocks, props, { detail = true, palette } = {}) {
+export function buildFoodHut(blocks, props, { detail = true, palette, decor = null } = {}) {
   const h = FOOD_HUT.half
   const yaw = HUT_YAW
   const box = (u, base, w, su, sy, sw, color, style = STYLE.SMOOTH, turn = 0) => {
@@ -200,7 +200,7 @@ export function buildFoodHut(blocks, props, { detail = true, palette } = {}) {
     for (const turn of [0, Math.PI / 4]) blocks.addOn(px, top + 0.12, pz, 1.0, 0.05, 1.0, i % 2 ? '#ffd21f' : '#ff9ccf', STYLE.GLOW, turn)
     const scale = 3.1
     const drop = -foodGeometry(id).boundingBox.min.y * foodSize(id) * scale
-    addFoodToProps(props, id, { position: [px, top + 0.2 + drop, pz], yaw: yaw + (i - 1.5) * 0.25, lean: 0.15, scale, anim: [i * 1.3, 0.05] })
+    later(decor, props, (p) => addFoodToProps(p, id, { position: [px, top + 0.2 + drop, pz], yaw: yaw + (i - 1.5) * 0.25, lean: 0.15, scale, anim: [i * 1.3, 0.05] }))
   })
   // Inside: shelves of jars along the back wall, and a menu board over them.
   box(0, 1.6, -h + 0.5, h * 2 - 1.2, 0.08, 0.5, HUT_WOOD)
@@ -256,7 +256,7 @@ export function buildFoodHut(blocks, props, { detail = true, palette } = {}) {
   props.add(round.drum, { position: [gx, plate, gz], scale: [1.15, 0.14, 1.15], color: '#ffd21f', style: STYLE.GLOW })
   const scale = 9
   const drop = -foodGeometry('burger').boundingBox.min.y * foodSize('burger') * scale
-  addFoodToProps(props, 'burger', { position: [gx, plate + 0.1 + drop, gz], yaw, lean: 0.12, scale, anim: [0.6, 0.3] })
+  later(decor, props, (p) => addFoodToProps(p, 'burger', { position: [gx, plate + 0.1 + drop, gz], yaw, lean: 0.12, scale, anim: [0.6, 0.3] }))
 
   // Planters either side of the counter, lanterns either side of the welcome mat, a rug
   // on the mat, and bunting from the roof's front corners out to the lanterns.
@@ -355,13 +355,22 @@ export function streetLamp(blocks, x, z, light = '#fff3b0', post = LAMP_POST) {
   blocks.add(x, 4.08, z, 0.72, 0.14, 0.72, '#2b2f38', STYLE.SMOOTH, 0.785)
 }
 
+/**
+ * Decoration that can wait: with `decor` (World's queue), `fn(builder)` runs later, after
+ * the game's playable, adding to the builder then; without it, now, into `props`.
+ */
+function later(decor, props, fn) {
+  if (decor) decor.later(fn)
+  else fn(props)
+}
+
 /** A giant food on a round pedestal, facing `yaw`: decoration on the lawns. */
-function giantFood(blocks, props, round, x, z, id, yaw, color) {
+function giantFood(blocks, props, round, x, z, id, yaw, color, decor = null) {
   props.add(round.small, { position: [x, 0.5, z], scale: [1.3, 1.0, 1.3], color: '#f4f7fb' })
   props.add(round.small, { position: [x, 1.08, z], scale: [1.45, 0.16, 1.45], color, style: STYLE.GLOW })
   const scale = 8
   const drop = -foodGeometry(id).boundingBox.min.y * foodSize(id) * scale
-  addFoodToProps(props, id, { position: [x, 1.16 + drop, z], yaw, lean: 0.1, scale, anim: [x, 0.35] })
+  later(decor, props, (p) => addFoodToProps(p, id, { position: [x, 1.16 + drop, z], yaw, lean: 0.1, scale, anim: [x, 0.35] }))
 }
 
 /**
@@ -372,7 +381,7 @@ function giantFood(blocks, props, round, x, z, id, yaw, color) {
  * Nothing here stands on the walkway, and nothing is solid but the statue's plinth.
  * In `palette`'s colours (palette.js).
  */
-export function buildTownSquare(blocks, props, { detail = true, palette } = {}) {
+export function buildTownSquare(blocks, props, { detail = true, palette, decor = null } = {}) {
   const { x, z } = STATUE
   const round = roundParts()
   const front = turned(x, z, STATUE_YAW)
@@ -399,8 +408,8 @@ export function buildTownSquare(blocks, props, { detail = true, palette } = {}) 
     }
   }
   // The giant foods flanking the walkway, turned to it and a little towards spawn.
-  giantFood(blocks, props, round, -GIANT_FOODS.x, GIANT_FOODS.z, 'donut', Math.PI / 2 - 0.35, '#ff7eb6')
-  giantFood(blocks, props, round, GIANT_FOODS.x, GIANT_FOODS.z, 'cupcake', -Math.PI / 2 + 0.35, '#ff6fa8')
+  giantFood(blocks, props, round, -GIANT_FOODS.x, GIANT_FOODS.z, 'donut', Math.PI / 2 - 0.35, '#ff7eb6', decor)
+  giantFood(blocks, props, round, GIANT_FOODS.x, GIANT_FOODS.z, 'cupcake', -Math.PI / 2 + 0.35, '#ff6fa8', decor)
   round.dispose()
 }
 
@@ -540,7 +549,7 @@ function frontAt(line, y) {
  * stone top tier and a gold cap. Faces west, down the cross street to spawn. Its body
  * and plinth go in `props` (merged, one draw call); the blocky head in `blocks`.
  */
-export function buildStatue(blocks, props, { palette } = {}) {
+export function buildStatue(blocks, props, { palette, decor = null } = {}) {
   const { x, z, radius } = STATUE
   const p = PLINTH
   // The plinth, tier on tier, round: the same seen from anywhere, so it needs no turning.
@@ -564,7 +573,7 @@ export function buildStatue(blocks, props, { palette } = {}) {
   const k = STATUE_SCALE
   // The body is built facing +z, then turned (props) or placed turned (blocks) to face STATUE_YAW.
   const at = (u, v, w) => [x + u * k, base + v * k, z + w * k]
-  props.transform = new Matrix4().makeTranslation(x, 0, z).multiply(new Matrix4().makeRotationY(STATUE_YAW)).multiply(new Matrix4().makeTranslation(-x, 0, -z))
+  const turn = new Matrix4().makeTranslation(x, 0, z).multiply(new Matrix4().makeRotationY(STATUE_YAW)).multiply(new Matrix4().makeTranslation(-x, 0, -z))
   const head = {
     add: (bx, by, bz, sx, sy, sz, color, style, rotY = 0) => {
       const [wx, wz] = front(bx - x, bz - z)
@@ -573,56 +582,60 @@ export function buildStatue(blocks, props, { palette } = {}) {
     addOn: (bx, base0, bz, sx, sy, sz, color, style, rotY = 0) => head.add(bx, base0 + sy / 2, bz, sx, sy, sz, color, style, rotY),
   }
 
-  const body = flexingBodybuilder()
-  const colorOf = (slot) => (slot.startsWith('arm') ? SKIN : slot.startsWith('leg') ? SHORTS : SHIRT)
-  // The champion breathes: the belly swelling out and back (the arms and legs a little),
-  // in the toy shader round the statue's middle.
+  // The champion breathes: the belly swelling out and back, round the statue's middle.
   toyBreathe.value.set(x, z)
-  const breath = (slot) => (slot === 'torso' ? -0.07 : -0.025)
-  for (const [slot, part] of Object.entries(body)) props.add(part, { position: at(0, 0, 0), scale: k, color: colorOf(slot), anim: [0, breath(slot)] })
+  // The body - fat-body geometry, the costliest thing in the lobby to build - and what's
+  // fitted to it are decoration: queued for after the game's playable (decor).
+  later(decor, props, (p) => {
+    p.transform = turn
+    const body = flexingBodybuilder()
+    const colorOf = (slot) => (slot.startsWith('arm') ? SKIN : slot.startsWith('leg') ? SHORTS : SHIRT)
+    const breath = (slot) => (slot === 'torso' ? -0.07 : -0.025)
+    for (const [slot, part] of Object.entries(body)) p.add(part, { position: at(0, 0, 0), scale: k, color: colorOf(slot), anim: [0, breath(slot)] })
 
-  const ring = new CylinderGeometry(1, 1, 1, 20)
-  const torso = body.torso
-  if (torso) {
-    // A champion's medal on the chest: a red ribbon from the collar and a gold disc, each
-    // laid flat against the chest where it sits.
-    const line = frontLine(torso, 3.7, 4.8, 8, 0.15)
-    const ribbon = frontAt(line, 4.55)
-    const medal = frontAt(line, 4.24)
-    if (ribbon && medal) {
-      for (const side of [-1, 1]) {
-        props.box(...at(side * 0.1, 4.55, ribbon.z + 0.04), 0.14 * k, 0.5 * k, 0.06 * k, RIBBON, STYLE.SMOOTH, [ribbon.tilt, 0, -side * 0.35])
+    const ring = new CylinderGeometry(1, 1, 1, 20)
+    const torso = body.torso
+    if (torso) {
+      // A champion's medal on the chest: a red ribbon from the collar and a gold disc, each
+      // laid flat against the chest where it sits.
+      const line = frontLine(torso, 3.7, 4.8, 8, 0.15)
+      const ribbon = frontAt(line, 4.55)
+      const medal = frontAt(line, 4.24)
+      if (ribbon && medal) {
+        for (const side of [-1, 1]) {
+          p.box(...at(side * 0.1, 4.55, ribbon.z + 0.04), 0.14 * k, 0.5 * k, 0.06 * k, RIBBON, STYLE.SMOOTH, [ribbon.tilt, 0, -side * 0.35])
+        }
+        p.add(ring, { position: at(0, 4.24, medal.z + 0.05), rotation: [Math.PI / 2 + medal.tilt, 0, 0], scale: [0.27 * k, 0.08 * k, 0.27 * k], color: GOLD, style: STYLE.GLOW })
       }
-      props.add(ring, { position: at(0, 4.24, medal.z + 0.05), rotation: [Math.PI / 2 + medal.tilt, 0, 0], scale: [0.27 * k, 0.08 * k, 0.27 * k], color: GOLD, style: STYLE.GLOW })
+      // The belt, sized to the belly round the waist, with a gold buckle at the front.
+      const waist = sliceExtent(torso, 2.45, 2.75)
+      if (waist) {
+        const cx = (waist.minX + waist.maxX) / 2
+        const cz = (waist.minZ + waist.maxZ) / 2
+        p.add(ring, {
+          position: at(cx, 2.6, cz),
+          scale: [((waist.maxX - waist.minX) / 2 + 0.05) * k, 0.3 * k, ((waist.maxZ - waist.minZ) / 2 + 0.05) * k],
+          color: BELT,
+        })
+        p.box(...at(cx, 2.6, waist.maxZ + 0.06), 0.42 * k, 0.32 * k, 0.06 * k, GOLD, STYLE.GLOW)
+      }
     }
-    // The belt, sized to the belly round the waist, with a gold buckle at the front.
-    const waist = sliceExtent(torso, 2.45, 2.75)
-    if (waist) {
-      const cx = (waist.minX + waist.maxX) / 2
-      const cz = (waist.minZ + waist.maxZ) / 2
-      props.add(ring, {
-        position: at(cx, 2.6, cz),
-        scale: [((waist.maxX - waist.minX) / 2 + 0.05) * k, 0.3 * k, ((waist.maxZ - waist.minZ) / 2 + 0.05) * k],
-        color: BELT,
-      })
-      props.box(...at(cx, 2.6, waist.maxZ + 0.06), 0.42 * k, 0.32 * k, 0.06 * k, GOLD, STYLE.GLOW)
+    // White shoes, each round the bottom of its leg.
+    for (const [slot, side] of [
+      ['leg_L', 1],
+      ['leg_R', -1],
+    ]) {
+      const foot = body[slot] && sliceExtent(body[slot], -1, 0.35)
+      const fx = foot ? (foot.minX + foot.maxX) / 2 : side * 0.75
+      const fz = foot ? (foot.minZ + foot.maxZ) / 2 : 0
+      const hx = foot ? (foot.maxX - foot.minX) / 2 + 0.08 : 0.62
+      const hz = foot ? (foot.maxZ - foot.minZ) / 2 + 0.12 : 0.76
+      p.add(ring, { position: at(fx, 0.15, fz + 0.1), scale: [hx * k, 0.3 * k, hz * k], color: SHOE })
     }
-  }
-  // White shoes, each round the bottom of its leg.
-  for (const [slot, side] of [
-    ['leg_L', 1],
-    ['leg_R', -1],
-  ]) {
-    const foot = body[slot] && sliceExtent(body[slot], -1, 0.35)
-    const fx = foot ? (foot.minX + foot.maxX) / 2 : side * 0.75
-    const fz = foot ? (foot.minZ + foot.maxZ) / 2 : 0
-    const hx = foot ? (foot.maxX - foot.minX) / 2 + 0.08 : 0.62
-    const hz = foot ? (foot.maxZ - foot.minZ) / 2 + 0.12 : 0.76
-    props.add(ring, { position: at(fx, 0.15, fz + 0.1), scale: [hx * k, 0.3 * k, hz * k], color: SHOE })
-  }
-  ring.dispose()
-  for (const part of Object.values(body)) part.dispose()
-  props.transform = null
+    ring.dispose()
+    for (const part of Object.values(body)) part.dispose()
+    p.transform = null
+  })
 
   // The head, as blocky as the players': hair at the back, eyes, rosy cheeks and a grin,
   // under a tall chef's hat.

@@ -25,8 +25,9 @@ import { createHeldFood, disposeHeldFood } from './food'
 import { sharedMaterials, STYLE } from './materials'
 import FallbackAvatar from './FallbackAvatar'
 import PlayerAvatar, { AvatarShaderWarmup } from './PlayerAvatar'
-import { bulkFor, FAT_SCALE, growBody } from './playerPose'
+import { bulkFor, chewAt, FAT_SCALE, growBody, tableBiteAt } from './playerPose'
 import { emoteMotion, stopEmote } from './emotes'
+import { burst } from './fx/fxQueue'
 import { ballRadius, trackPoint } from './push/path'
 import { advancePush, push } from './push/pushControl'
 import { runtime } from './runtime'
@@ -40,8 +41,15 @@ const GRAVITY = 32
 const JUMP_SPEED = 10.5
 /** Ledges up to this high are walked straight onto (the shop's back stage). */
 const STEP_UP = 1.05
-/** A click's bite (hand to mouth and back) takes this long. */
-const CURL_MS = 420
+/**
+ * A click's bite takes this long: hands up, three chomps, a gulp, hands down. Clicking
+ * again mid-bite keeps you chomping rather than starting over (BITE_HOLD: back to this
+ * far through it, food still at your mouth).
+ */
+const CURL_MS = 640
+const BITE_HOLD = 0.45
+/** Where in a bite you swallow: GULP. */
+const GULP_AT = 0.82
 /** Facing down the track as you roll; at the end, turned to the camera at your side. */
 const DOWNHILL_YAW = Math.PI
 const CHEER_YAW = Math.PI / 2
@@ -56,11 +64,26 @@ const BALL_MIDDLE = [0.95, 1.2]
  * out, then bounces. Stiffness and damping per second, how hard a bite kicks, and how
  * far it squashes. Fatter bodies wobble more.
  */
-const JIGGLE_STIFFNESS = 220
-const JIGGLE_DAMPING = 8
+const JIGGLE_STIFFNESS = 200
+const JIGGLE_DAMPING = 7
 const BITE_KICK = 6
-const BITE_AT_MS = 170
-const JIGGLE_SIZE = 0.055
+const CHOMP_KICK = 3.5
+const GULP_KICK = 9
+const PUFF_KICK = 26
+/**
+ * Swallowing blows the belly up a moment - it balloons out past your size and springs
+ * back (a kick to the growth spring); a size milestone, a much bigger BOING.
+ */
+const GULP_PUFF = 0.7
+const MILESTONE_PUFF = 2.4
+const JIGGLE_SIZE = 0.085
+/** The food in your hand, squashed flat and wide by a chomp `chew` (0-1) into it. */
+function squash(held, chew) {
+  if (held) held.scale.set(1 + 0.14 * chew, 1 - 0.22 * chew, 1 + 0.14 * chew)
+}
+/** After a feed, standing about full: a belly pat, this long after the last bite, lasting this long. */
+const PAT_AFTER_MS = 900
+const PAT_MS = 1500
 /** Growth kicks the wobble by this per unit of bulk gained. */
 const GROW_KICK = 60
 /** Standing about, the belly breathes in and out this much (more on a fat one). */
@@ -158,7 +181,9 @@ export function Player({ onAvatarReady }) {
   const rollRef = useRef(null)
   const ballRef = useRef(null)
   /** The belly's wobble: value and speed, the last bite and growth it was kicked by. */
-  const jiggle = useRef({ x: 0, v: 0, bite: 0, eaten: 0, bulk: -1 })
+  const jiggle = useRef({ x: 0, v: 0, bite: 0, eaten: 0, bulk: -1, puff: 0 })
+  /** The click bite in progress: when it (notionally) started, the last click, how hard it was chomping. */
+  const biting = useRef({ start: -1e9, ate: 0, chew: 0, t: 1, end: 0, beat: 1 })
   /** The dizzy stars round your head when a roll wears you out. */
   const starsRef = useRef(null)
   const stars = useMemo(() => {
@@ -244,12 +269,44 @@ export function Player({ onAvatarReady }) {
     player.drawnSize = size
     const j = jiggle.current
     const now = performance.now()
-    // A bite (a click's, once the food's at your mouth, or one taken at a table) kicks it.
-    const bite = Math.max(player.ateAt + BITE_AT_MS, player.jiggleAt)
-    if (bite !== j.bite && now >= bite) {
-      j.bite = bite
+    // A bite taken at a table kicks it; so does a size milestone - a big funny PUFF.
+    if (player.jiggleAt !== j.bite && now >= player.jiggleAt) {
+      j.bite = player.jiggleAt
       j.v += BITE_KICK
     }
+    if (player.puffAt !== j.puff) {
+      j.puff = player.puffAt
+      j.v += PUFF_KICK
+      motion.bulkVel = (motion.bulkVel ?? 0) + MILESTONE_PUFF
+    }
+
+    // A click's bite: up to the mouth, chomp chomp chomp (the food squashing, a crunch and
+    // a wobble on each), GULP (a big wobble), and down. Clicking again mid-bite keeps you
+    // chomping.
+    const b = biting.current
+    if (player.ateAt !== b.ate) {
+      b.ate = player.ateAt
+      const into = (now - b.start) / CURL_MS
+      b.start = into >= 0 && into < GULP_AT ? now - Math.min(into, BITE_HOLD) * CURL_MS : now
+    }
+    const biteT = (now - b.start) / CURL_MS
+    const chew = biteT >= 0 && biteT < 1 ? chewAt(biteT) : 0
+    if (chew > 0.9 && b.chew <= 0.9) {
+      // CHOMP: a crunch, a wobble and crumbs flying off the mouth.
+      sfx.chomp()
+      j.v += CHOMP_KICK
+      const p = player.position
+      burst({ x: p.x + Math.sin(player.yaw) * 0.34 * size, y: p.y + 1.55 * size, z: p.z + Math.cos(player.yaw) * 0.34 * size, count: 5, speed: 2.4, palette: 'crumbs' })
+    }
+    if (biteT >= GULP_AT && b.t < GULP_AT) {
+      sfx.gulp()
+      j.v += GULP_KICK
+      motion.bulkVel = (motion.bulkVel ?? 0) + GULP_PUFF
+      b.end = now
+    }
+    b.chew = chew
+    b.t = biteT
+    squash(held, chew)
     // So does growing: the more you just put on, the bigger the bounce.
     if (j.bulk >= 0 && motion.bulk > j.bulk) j.v += (motion.bulk - j.bulk) * GROW_KICK
     j.bulk = motion.bulk
@@ -371,6 +428,8 @@ export function Player({ onAvatarReady }) {
       motion.sitting = true
       motion.training = true
       motion.curl = 0
+      // The food squashes on each chomp at the table too.
+      squash(held, chewAt(tableBiteAt(motion.time)))
       if (player.emote) stopEmote()
       motion.emoteClip = null
       return
@@ -512,14 +571,25 @@ export function Player({ onAvatarReady }) {
     player.speed = speed
     player.anim = !player.grounded ? 'jump' : dancing ? 'dance' : speed > 0.5 ? 'walk' : 'idle'
 
-    const sinceBite = performance.now() - player.ateAt
     motion.speed = speed
     motion.maxSpeed = maxSpeed
     motion.grounded = player.grounded
     motion.vy = vy.current
     motion.training = false
     motion.dance = dancing ? 1 : 0
-    motion.curl = sinceBite < CURL_MS ? sinceBite / CURL_MS : 0
+    motion.curl = biteT >= 0 && biteT < 1 ? Math.max(1e-4, biteT) : 0
+    // Full up after a feed, standing still: a pat of the belly (pat, pat, pat).
+    const sincePat = now - b.end - PAT_AFTER_MS
+    const patting = b.end > 0 && sincePat > 0 && sincePat < PAT_MS && speed < 0.4 && player.grounded && motion.curl === 0
+    motion.pat = patting ? sincePat / PAT_MS : 0
+    motion.patWeight = patting ? Math.sin((Math.PI * sincePat) / PAT_MS) ** 0.5 : 0
+    // A thump each time a hand comes down on it (the pose's beat: one hand, then the other).
+    const beat = Math.abs(Math.sin(motion.pat * Math.PI * 6))
+    if (patting && beat < 0.2 && b.beat >= 0.2) {
+      sfx.pat(Math.min(1, motion.bulk))
+      j.v += 1.5
+    }
+    b.beat = patting ? beat : 1
     // Steps quicken with speed: the stride phase runs faster rather than jumping.
     const stepBefore = Math.floor(motion.stride / Math.PI)
     motion.stride += delta * (5 + 6 * Math.min(1, speed / maxSpeed))

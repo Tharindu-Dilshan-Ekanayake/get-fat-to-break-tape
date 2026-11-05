@@ -19,6 +19,7 @@ import { useGame } from '../store/game'
 import { useQuality } from '../store/quality'
 import { CLOUDS, LIGHTS } from './sceneStyle'
 import { skyUniforms } from './skyState'
+import { useAfterPlayable } from './useAfterPlayable'
 
 /** Unit dome, scaled to just inside the camera's far plane for the current preset. */
 const SKY_RADIUS = 1
@@ -175,7 +176,9 @@ function buildCloudLayout(count) {
  * sky, where one mesh per puff cost ~100.
  */
 function Clouds() {
-  const count = useQuality((s) => s.settings.cloudCount)
+  // Not needed to start playing: drifted in once the game's up (see useAfterPlayable).
+  const settled = useAfterPlayable()
+  const count = useQuality((s) => s.settings.cloudCount) * (settled ? 1 : 0)
   const world = useGame((s) => s.profile.world)
 
   const mesh = useMemo(() => {

@@ -162,7 +162,9 @@ export function EggDisplays() {
 
   const assets = useMemo(() => {
     const count = EGG_STANDS.length
-    const geometry = new SphereGeometry(1, 28, 20)
+    // Smooth enough on LOW at 18 x 14 (half the triangles); 28 x 20 where there's detail to spare.
+    const fine = getQuality().decorDensity >= 0.75
+    const geometry = new SphereGeometry(1, fine ? 28 : 18, fine ? 20 : 14)
     const spot = new InstancedBufferAttribute(new Float32Array(count * 3), 3)
     const dark = new InstancedBufferAttribute(new Float32Array(count * 3), 3)
     const pattern = new InstancedBufferAttribute(new Float32Array(count), 1)

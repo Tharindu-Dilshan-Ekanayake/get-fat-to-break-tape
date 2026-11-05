@@ -44,7 +44,7 @@ export function bulkFor(fat = 0) {
  * How much bigger all over a fat body is drawn, on top of its rounder shape (1 + this,
  * as fat as can be). Shared by your character and everyone else's.
  */
-export const FAT_SCALE = 0.32
+export const FAT_SCALE = 0.24
 
 /**
  * A body grows into its size on a spring, not an ease: a bite's worth of Fat lands and
@@ -240,18 +240,62 @@ function dizzy(time, w) {
   pose.lift -= FLOOR_DROP * w
 }
 
+/** A bite's parts, as shares of it: hands up to the mouth, the chomping, hands down. */
+const BITE_UP = 0.22
+const BITE_DOWN = 0.8
+const CHOMPS = 3
+
 /**
- * A bite of what's in your right hand, `t` 0-1 through it: up to the mouth - the elbow
- * swinging out and up, the forearm folding in - a quick chomp with a nod, and back down.
+ * How hard you're chomping `t` (0-1) through a bite: 0, then three bumps up to 1 - one
+ * a chomp - while the food's at your mouth, then 0 again. The player squashes the food
+ * and crunches on each.
  */
-function eating(t, w = 1) {
+export function chewAt(t) {
+  if (!(t > BITE_UP && t < BITE_DOWN)) return 0
+  return Math.max(0, Math.sin(((t - BITE_UP) / (BITE_DOWN - BITE_UP)) * Math.PI * CHOMPS))
+}
+
+/**
+ * A bite, `t` 0-1 through it, for a body `bulk` (0-1) fat: both hands bring the food up
+ * in front of your face (elbows out, hands turned in to hold it between them), three big
+ * chomps - the head diving into it, the shoulders hunching, a little bounce on each -
+ * and down again. A very fat body's arms can't reach round to the middle any more, so
+ * the head leans over and chomps it from the side.
+ */
+function eating(t, w = 1, bulk = 0) {
   const x = clamp01(t)
-  const up = Math.sin(Math.min(1, x / 0.75) * Math.PI)
-  const chomp = x > 0.25 && x < 0.6 ? Math.sin(((x - 0.25) / 0.35) * Math.PI * 2) : 0
-  add('ArmR1', -1.25 * up, -0.38 * OUT_R * up, 0, w)
-  add('ArmR2', -1.95 * up, 0, 0, w)
-  add('Neck1', 0.12 * up + 0.08 * chomp, 0, 0, w)
-  add('Spine1', 0.05 * up, 0, 0, w)
+  const up = x < BITE_UP ? smooth(0, BITE_UP, x) : x > BITE_DOWN ? 1 - smooth(BITE_DOWN, 1, x) : 1
+  const chew = chewAt(x)
+  const reach = -0.6 - 0.2 * bulk
+  const inward = 0.8 + 0.5 * bulk
+  const turn = 1 + 0.15 * bulk
+  const bend = -1.9 + 0.1 * bulk
+  add('ArmR1', reach * up, -inward * OUT_R * up, turn * up, w)
+  add('ArmR2', bend * up, 0, 0, w)
+  add('ArmL1', reach * up, -inward * OUT_L * up, -turn * up, w)
+  add('ArmL2', bend * up, 0, 0, w)
+  // The head: forward into the food, nodding on each chomp; leaning over to the food
+  // hand's side when the arms are too short to bring it round.
+  const lean = smooth(0.55, 1, bulk) * up
+  add('Neck1', 0.12 * up + 0.24 * chew, 0.35 * OUT_R * lean, 0.45 * lean, w)
+  add('Spine1', -0.05 * up - 0.06 * chew, 0, 0, w)
+  pose.lift += 0.035 * chew * w
+}
+
+/**
+ * Full up after a feed: both hands on the belly, leaning back to stick it out, patting
+ * it - one hand then the other, pat, pat, pat. `t` 0-1 through it; `w` blends it in.
+ */
+function patting(t, w) {
+  const beat = clamp01(t) * Math.PI * 6
+  const left = Math.max(0, Math.sin(beat))
+  const right = Math.max(0, -Math.sin(beat))
+  add('ArmL1', -0.3 - 0.18 * left, -1 * OUT_L, -1, w)
+  add('ArmR1', -0.3 - 0.18 * right, -1 * OUT_R, 1, w)
+  add('ArmL2', -1 - 0.3 * left, 0, 0, w)
+  add('ArmR2', -1 - 0.3 * right, 0, 0, w)
+  add('Spine1', 0.08, 0, 0, w)
+  add('Neck1', -0.14, 0, 0, w)
 }
 
 /**
@@ -323,6 +367,9 @@ function dancing(time, w) {
 /** Seconds per automatic bite at a Food Court (TRAIN_INTERVAL in balance.js). */
 const TRAIN_PERIOD = 0.8
 
+/** How far (0-1) through a table bite you are at `time` (seconds): the Food Court loop. */
+export const tableBiteAt = (time) => (time / TRAIN_PERIOD) % 1
+
 /**
  * @param {{ time?: number, speed?: number, maxSpeed?: number, grounded?: boolean,
  *   vy?: number, stride?: number, rolling?: boolean, tired?: number, cheer?: number,
@@ -353,6 +400,9 @@ export function computePose(motion) {
   const bulk = Math.min(1, Math.max(0, motion.bulk ?? 0))
   /** 0-1: a happy little hop, arms up (a purchase, a level up, a rebirth). */
   const happy = Math.min(1, Math.max(0, motion.happy ?? 0))
+  /** 0-1 through a full-belly pat after a feed (0: not patting), and how much of it shows. */
+  const pat = motion.pat ?? 0
+  const patWeight = motion.patWeight ?? 0
   for (const name of POSED_BONES) {
     const b = pose.bones[name]
     b.swing = 0
@@ -383,11 +433,12 @@ export function computePose(motion) {
     if (ratio > 0.02) stride(phase, ratio, bulk)
     if (dance > 0) dancing(time, dance)
     if (happy > 0) cheering(time, happy)
+    if (patWeight > 0 && curl === 0) patting(pat, patWeight)
   } else {
     airborne(vy)
   }
   chubby(bulk)
-  if (training) eating((time / TRAIN_PERIOD) % 1, 1)
-  else if (curl > 0) eating(curl, 1)
+  if (training) eating(tableBiteAt(time), 1, bulk)
+  else if (curl > 0) eating(curl, 1, bulk)
   return pose
 }

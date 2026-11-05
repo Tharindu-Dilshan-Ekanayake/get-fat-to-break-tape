@@ -661,7 +661,7 @@ function streetGaps(blocks, palette, detail) {
  * `props`), with lamps and planters on the street between them, lit in `palette`'s
  * lamp colours.
  */
-export function buildFoodCourts(blocks, props, { detail = true, palette } = {}) {
+export function buildFoodCourts(blocks, props, { detail = true, palette, decor = null } = {}) {
   streetGaps(blocks, palette, detail)
   for (let i = 0; i < ZONE_COUNT; i += 1) {
     const t = ZONE_THEMES[i]
@@ -694,6 +694,8 @@ export function buildFoodCourts(blocks, props, { detail = true, palette } = {}) 
     diningTable(frame, 0, bz - TABLE_FORWARD, t, i, detail)
 
     EXTRAS[t.special](frame, 0, roof, t, detail, edge)
-    if (props) roofFood(frame, props, roof, t, i * 1.9)
+    // The giant roof food is decoration: queued for after the game's playable (decor).
+    if (decor) decor.later((later) => roofFood(frame, later, roof, t, i * 1.9))
+    else if (props) roofFood(frame, props, roof, t, i * 1.9)
   }
 }
