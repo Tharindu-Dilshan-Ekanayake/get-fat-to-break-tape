@@ -35,6 +35,10 @@ const PALETTES = {
   /** Shreds of a smashed tape: red and white. */
   ribbon: ['#ff3045', '#ffffff', '#ff6a7a', '#ffffff'].map((c) => new Color(c)),
   power: ['#ffd84a', '#ffa21c', '#ffffff'].map((c) => new Color(c)),
+  /** Electric sparks off a tape your belly's pushing into. */
+  electric: ['#9ff3ff', '#ffffff', '#45c8ff', '#2f7dff'].map((c) => new Color(c)),
+  /** Shreds of a smashed tape: silver. */
+  tape: ['#e9ecf0', '#c3c9d1', '#ffffff', '#9aa3ad'].map((c) => new Color(c)),
 }
 
 /**

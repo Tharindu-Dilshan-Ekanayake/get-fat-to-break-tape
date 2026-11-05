@@ -202,6 +202,16 @@ export function beginPush({ reach, power, start, x }) {
 const _at = new Vector3()
 const COIN = iconUrl('coin')
 
+/** Sparks crackle off a tape your belly's pushing into: a little burst every SPARK_MS. */
+const SPARK_MS = 70
+let lastSpark = 0
+function zap(now, meter) {
+  if (now - lastSpark < SPARK_MS) return
+  lastSpark = now
+  trackPoint(meter, push.x, push.radius, _at)
+  burst({ x: _at.x, y: _at.y, z: _at.z, count: 6, palette: 'electric', speed: 6 })
+}
+
 /** What `coins` (before multipliers) pays you now. */
 const paid = (coins) => Math.max(1, Math.round(coins * coinsMultiplier(getGame().profile, Date.now())))
 
@@ -222,6 +232,7 @@ function smashTapes(now) {
     if (press < TAPE_STRETCH) {
       push.stretch = press / TAPE_STRETCH
       sfx.tapeStretch(push.stretch)
+      zap(now, tape.meter)
       break
     }
     push.tapesBroken.push(tape.stage)
@@ -234,8 +245,9 @@ function smashTapes(now) {
     push.speed = Math.max(push.speed, SNAP_SPEED)
     report()
     trackPoint(tape.meter, push.x, push.radius + 0.4, _at)
-    burst({ x: _at.x, y: _at.y, z: _at.z, count: 40, palette: 'ribbon', speed: 10 })
-    burst({ x: _at.x, y: _at.y + 0.6, z: _at.z, count: 40, palette: 'confetti', speed: 8 })
+    burst({ x: _at.x, y: _at.y, z: _at.z, count: 40, palette: 'tape', speed: 10 })
+    burst({ x: _at.x, y: _at.y, z: _at.z, count: 24, palette: 'electric', speed: 9 })
+    burst({ x: _at.x, y: _at.y + 0.6, z: _at.z, count: 30, palette: 'confetti', speed: 8 })
     burst({ x: _at.x, y: _at.y + 0.5, z: _at.z, count: 18, palette: 'gold', speed: 6 })
     spawnPopup(`+${formatNumber(coins)}`, _at.setY(_at.y + push.radius + 0.6), { iconUrl: COIN, scale: 1.6, follow: push.position })
     sfx.tapeSnap()
@@ -285,6 +297,7 @@ export function advancePush(rawDelta, { side }) {
   if (pressing > 0) {
     push.speed *= Math.exp(-BLOCK_GRIP * (0.4 + pressing / TAPE_STRETCH) * delta)
     sfx.tapeStretch(Math.min(1, pressing / TAPE_STRETCH))
+    zap(now, wall.meter)
   }
   if (!wall) push.speed = Math.min(push.speed, Math.sqrt(2 * DECEL * Math.max(0, TRACK_LENGTH - push.meter)))
   let meter = push.meter + push.speed * delta
@@ -323,7 +336,7 @@ function thrownBack(now, wall) {
   setTimeout(sfx.tired, 350)
   setTimeout(sfx.dizzy, 900)
   trackPoint(wall.meter, push.x, push.radius + 0.4, _at)
-  burst({ x: _at.x, y: _at.y, z: _at.z, count: 18, palette: 'ribbon', speed: 4 })
+  burst({ x: _at.x, y: _at.y, z: _at.z, count: 18, palette: 'electric', speed: 5 })
   showBanner({ kind: 'blocked', need: wall.need, tapes: push.tapesBroken.length, coins: push.coins })
   holdTimer = setTimeout(() => endPush('blocked'), BLOCKED_HOLD_MS)
 }

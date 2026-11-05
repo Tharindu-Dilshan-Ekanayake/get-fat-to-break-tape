@@ -50,8 +50,10 @@ function FoodCard({ index, state, selected, onClick }) {
       }}
     >
       <FoodIcon id={food.id} size={u(118)} className="absolute" style={{ top: u(6), filter: state === 'locked' ? 'grayscale(0.85) brightness(0.7)' : 'none' }} />
-      <span className="relative w-full truncate" style={{ fontSize: u(22), lineHeight: 1.1 }}>
-        <StrokeText stroke={u(5)}>{food.name}</StrokeText>
+      <span className="relative w-full text-center" style={{ fontSize: u(19), lineHeight: 1.05, overflowWrap: 'break-word' }}>
+        <StrokeText stroke={u(5)} className="pp-wrap">
+          {food.name}
+        </StrokeText>
       </span>
       {state === 'equipped' && <Icon name="check" size={u(44)} className="absolute" style={{ top: u(4), right: u(4) }} />}
       {state === 'locked' && (

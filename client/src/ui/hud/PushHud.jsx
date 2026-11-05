@@ -204,8 +204,8 @@ function SteerHint() {
   const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
   if (!guiding) return null
   return (
-    <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center" style={{ bottom: u(124), fontSize: u(32) }}>
-      <StrokeText stroke={u(7)} gradient={GRADIENTS.gold}>
+    <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center" style={{ bottom: u(124), fontSize: u(touch ? 28 : 32), width: 'max-content', maxWidth: '64vw', lineHeight: 1.15 }}>
+      <StrokeText stroke={u(7)} gradient={GRADIENTS.gold} className="pp-wrap">
         {touch ? 'Smash every tape your Fat is big enough for!' : 'Smash every tape your Fat is big enough for! (A / D to steer)'}
       </StrokeText>
     </div>

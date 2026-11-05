@@ -60,7 +60,7 @@ export function StatsPanel() {
   const rebirths = useGame((s) => s.profile.rebirths)
 
   return (
-    <div className="pointer-events-none absolute flex flex-col" style={{ left: u(20), bottom: u(120) }}>
+    <div className="pointer-events-none absolute flex flex-col" style={{ left: u(20), bottom: 'var(--stats-bottom)' }}>
       <Boosts />
       <StatRow icon="coin" value={formatNumber(coins)} gradient={GRADIENTS.gold} flyTarget />
       <StatRow icon="fat" value={formatNumber(fat)} />

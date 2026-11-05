@@ -126,14 +126,14 @@ export default function Push() {
     for (const tape of TAPES) {
       const stage = STAGES[tape.stage]
       const last = tape.stage === STAGES.length - 1
+      // The Fat it takes, big, with a drumstick - and what it pays.
       const lines = [
-        { text: last ? 'FINAL TAPE' : `TAPE ${tape.stage + 1}`, size: 52, gradient: STAGE_THEMES[stage.id].name },
-        { text: `${formatNumber(tape.need)} Fat`, size: 42, icon: 'fat', gradient: gold },
-        { text: `+${formatNumber(tape.coins)}`, size: 42, icon: 'coin', fill: '#ffffff' },
+        { text: formatNumber(tape.need), size: 76, icon: 'fat', gradient: last ? gold : STAGE_THEMES[stage.id].name },
+        { text: `+${formatNumber(tape.coins)}`, size: 40, icon: 'coin', fill: '#ffffff' },
       ]
-      // Just short of the tape, over its beam: in view as you roll down at it.
+      // Just short of the tape, floating over the wall: in view as you roll down at it.
       const z = zAt(tape.meter - 0.6)
-      batch.add(`tape-${tape.stage}`, [0, surfaceY(z, 0) + 6.1, z], { lines, pxPerUnit: 60 }, { fade: 220 })
+      batch.add(`tape-${tape.stage}`, [0, surfaceY(z, 0) + 4.6, z], { lines, pxPerUnit: 60 }, { fade: 220 })
     }
     const top = zAt(TRACK_LENGTH + SUMMIT_LENGTH * 0.62)
     batch.add(

@@ -85,7 +85,7 @@ export function LevelBar() {
   const packs = fatPacks({ level, rebirths, world })
 
   return (
-    <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ bottom: u(18), width: u(WIDTH), gap: u(14) }}>
+    <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ bottom: 'var(--levelbar-bottom)', width: u(WIDTH), maxWidth: '96vw', gap: u(14) }}>
       <Bar />
       <div className="flex justify-center" style={{ gap: u(26) }}>
         {packs.map((pack, i) => (

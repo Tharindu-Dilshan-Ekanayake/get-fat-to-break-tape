@@ -11,35 +11,40 @@ import { sharedMaterials, STYLE } from '../materials'
 import { MAX_STAGES, STAGES, TAPES } from './course'
 import { tiltAt, trackPoint } from './path'
 import { push, TAPE_STRETCH } from './pushControl'
-import { STAGE_THEMES } from './themes'
 
 /**
- * The tapes across the end of every slope: a stack of bands strung post to post across
- * the track (the posts are the track's own, see track.js) - striped in the stage's own
- * colour and white, gold and white on the last, more of them the harder the stage; and
- * dark red and black on any tape too strong for the Fat you have, so you can see where
- * a roll will stop. They sag a touch between their posts and flutter as you roll. Each band is a row of short
- * segments, so it can bend: rolling into it, it stretches round your belly, further and
- * further until it SNAPS (pushControl decides when); then each half swings away off its
- * post and drops, and lies on the track behind you for the rest of the roll. Once your
- * roll is over they're all whole again.
+ * The tapes across the end of every slope: a tall wall of silver tape, strip over strip,
+ * stretched between two traffic posts (the posts are the track's own, see track.js) -
+ * gold on the last, and tinted red on any tape too strong for the Fat you have, so you
+ * can see where a roll will stop. It sags a touch between its posts and flutters as you
+ * roll. Each strip is a row of short segments, so the wall can bend: rolling into it, it
+ * bulges round your belly - crackling with electric blue where you push - further and
+ * further until it SNAPS (pushControl decides when); then each half of every strip swings
+ * away off its post and drops, and lies on the track behind you for the rest of the roll.
+ * Once your roll is over they're all whole again.
  *
  * Every segment of every tape near the camera is one instance of one InstancedMesh - a
  * single draw call - placed each frame from shared scratch objects (no allocation).
  */
 
-/** Segments per band, and the band's size: across the track's floor, belly high. */
-const SEGMENTS = 12
+/** Segments per strip, and the strip's size: across the track's floor. */
+const SEGMENTS = 14
 const SPAN = TRACK_HALF_WIDTH * 2 - 0.3
 const HALF_SPAN = SPAN / 2
 const SEG = SPAN / SEGMENTS
-const BAND_H = 0.3
+const BAND_H = 0.42
 const BAND_T = 0.07
-/** The lowest band's middle above the floor, and the gap from one band to the next. */
-const BOTTOM = 0.55
-const STEP = 0.46
-/** How many bands tape `stage`'s stack has: a couple at first, up to six on the hardest. */
-const bandsOf = (stage) => Math.min(6, 2 + Math.floor(stage / 2))
+/**
+ * The wall: this many strips, the lowest one's middle this high, each overlapping the one
+ * below a little (STEP < BAND_H) - floor to just over three metres, taller than any belly.
+ * Every other strip sits a hair further down the track (OVERLAP), so overlaps never flicker.
+ */
+const BANDS = 8
+const BOTTOM = 0.26
+const STEP = 0.4
+const OVERLAP = 0.012
+/** How tall the bulge round a belly is, as a share of how big the ball is. */
+const BOW_HEIGHT = 1.6
 /** How wide the bow round a belly is (m), as a share of how big the ball is. */
 const BOW_WIDTH = 1.5
 /** A snapped half swings down off its post like this: how fast, how bouncy. */
@@ -50,14 +55,24 @@ const FLOOR = 0.05
 /** Not rolling, the tapes are laid out only every this many frames. */
 const IDLE_EVERY = 30
 
-const MAX_INSTANCES = MAX_STAGES * 6 * SEGMENTS
+const MAX_INSTANCES = MAX_STAGES * BANDS * SEGMENTS
 
-const GOLD = new Color('#ffcc1f')
-const WHITE = new Color('#ffffff')
-const LOCKED = new Color('#8a0f1c')
-const LOCKED_DARK = new Color('#1d1d24')
-/** Each stage's stripe colour (its theme's gate colour), made once. */
-const STRIPES = new Map(Object.entries(STAGE_THEMES).map(([id, theme]) => [id, new Color(theme.gate)]))
+/**
+ * The strips' shades, cycling up the wall (duct tape, strip over strip): silver; gold on
+ * the last tape; red-tinted silver on a tape too strong for you; electric blue, flickering,
+ * where a belly's pushing in.
+ */
+const shades = (list) => list.map((c) => new Color(c))
+const PALETTE = [
+  shades(['#eef1f4', '#dde2e7', '#e7ebef', '#d4dae0']),
+  shades(['#ffe68f', '#f3cd52', '#ffde73', '#e9bd3c']),
+  shades(['#e6aaaa', '#d69595', '#df9f9f', '#cc8a8a']),
+  shades(['#c9f7ff', '#6fdcff', '#a8efff', '#3cbcff']),
+]
+const SILVER = 0
+const GOLD = 1
+const LOCKED = 2
+const ELECTRIC = 3
 /** How far a band sags in its middle, and how it flutters while you roll. */
 const SAG = 0.09
 const FLUTTER = 0.07
@@ -68,18 +83,13 @@ const _q = new Quaternion()
 const _s = new Vector3()
 const _e = new Euler()
 
-/**
- * Colours instance `i`, segment `seg` of band `band` of stage `stage`'s tape (`last` the
- * final one, `locked` too strong for you) - only when that changes.
- */
-function paint(tapes, colours, i, seg, band, stage, last, locked) {
-  const light = (seg + band) % 2 === 1
-  const kind = locked ? (light ? 3 : 4) : light ? 1 : last ? 2 : 0
-  const key = 1 + kind + 8 * stage
+/** Colours instance `i`, strip `band`, as `look` (SILVER...ELECTRIC) - only when that changes. */
+function paint(tapes, colours, i, band, look) {
+  const shade = band % 4
+  const key = 1 + shade + 4 * look
   if (colours[i] === key) return false
   colours[i] = key
-  const colour = kind === 1 ? WHITE : kind === 2 ? GOLD : kind === 3 ? LOCKED : kind === 4 ? LOCKED_DARK : STRIPES.get(STAGES[stage].id) ?? WHITE
-  tapes.setColorAt(i, colour)
+  tapes.setColorAt(i, PALETTE[look][shade])
   return true
 }
 
@@ -123,23 +133,23 @@ export default function Tapes() {
       const press = rolling && !brokenAt && push.phase !== 'top' ? push.meter + push.radius - tape.meter : 0
       const bow = Math.min(TAPE_STRETCH, Math.max(0, press))
       const width = BOW_WIDTH * Math.max(0.6, push.radius)
+      const tall = BOW_HEIGHT * Math.max(0.6, push.radius)
       // Snapped: how far each half has swung down off its post (radians), bouncing.
       const swing = brokenAt ? (Math.PI / 2) * (1 - Math.exp(-SWING_RATE * age) * Math.cos(SWING_BOUNCE * age)) : 0
       const tilt = tiltAt(tape.meter)
-      const bands = bandsOf(tape.stage)
-      const last = tape.stage === lastStage
-      const locked = tape.need > fat
+      const look = tape.stage === lastStage ? GOLD : tape.need > fat ? LOCKED : SILVER
 
-      for (let band = 0; band < bands; band += 1) {
+      for (let band = 0; band < BANDS; band += 1) {
         const h = BOTTOM + band * STEP
         for (let seg = 0; seg < SEGMENTS; seg += 1) {
           if (i >= MAX_INSTANCES) break
           const x = -HALF_SPAN + (seg + 0.5) * SEG
-          let meter = tape.meter
+          let meter = tape.meter + (band % 2) * OVERLAP
           let along = x
           let y = h
           let roll = 0
           let pitch = tilt
+          let shown = look
           if (brokenAt) {
             // Each half hangs off its own post: swung down `swing` from level, and what
             // would go through the floor lies on it instead, billowing on down the track.
@@ -162,17 +172,22 @@ export default function Tapes() {
             y -= SAG * (1 - (x / HALF_SPAN) ** 2)
             if (flutter) meter += Math.sin(flutter + x * 1.4 + band * 0.9) * FLUTTER * ends
             if (bow > 0) {
+              // Bulging round the ball: most round its middle, less up and down the wall.
               const off = (x - push.x) / width
-              meter += bow * Math.exp(-off * off) * ends
+              const up = (h - push.radius) / tall
+              const bulge = Math.exp(-off * off - up * up)
+              meter += bow * bulge * ends
+              // Crackling electric blue where it's pushed in hardest.
+              if (bulge > 0.45 && Math.sin(now * 0.045 + seg * 2.3 + band * 1.7) > 0.1) shown = ELECTRIC
             }
           }
           trackPoint(meter, along, y, _p)
           _e.set(pitch, 0, roll)
           _q.setFromEuler(_e)
-          // Stretched, the bands thin a little.
-          _s.set(SEG * 1.04, BAND_H * (1 - 0.25 * (bow / TAPE_STRETCH)), BAND_T)
+          // Stretched, the strips thin a little (the wall opening up between them).
+          _s.set(SEG * 1.12, BAND_H * (1 - 0.3 * (bow / TAPE_STRETCH)), BAND_T)
           tapes.setMatrixAt(i, _m.compose(_p, _q, _s))
-          if (paint(tapes, colours, i, seg, band, tape.stage, last, locked)) repainted = true
+          if (paint(tapes, colours, i, band, shown)) repainted = true
           i += 1
         }
       }

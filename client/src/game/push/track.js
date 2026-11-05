@@ -158,24 +158,19 @@ function walls(b, a, c, theme, wide, kind) {
 }
 
 /**
- * The posts tape `stage`'s bands are strung between, at metre `m`: a striped pole either
- * side of the floor in the stage's colour, capped, and a beam over the top.
+ * The posts tape `stage`'s wall of tape is stretched between, at metre `m`: a big orange
+ * and white striped traffic post either side of the floor, on a dark foot, with a cap and
+ * a light in the stage's colour on top.
  */
 function tapeGate(b, m, theme) {
   const [, py, pz] = slopeBoxPlacement(m, 0, 0)
   for (const side of [-1, 1]) {
     const x = side * (HALF - 0.12)
-    b.addOn(x, py - 0.3, pz, 0.38, 4.3, 0.38, theme.gate, STYLE.STRIPES)
-    b.addOn(x, py + 4, pz, 0.62, 0.35, 0.62, '#ffffff', STYLE.SMOOTH)
-    // A little pennant flying off the top of each post, out over the walls.
-    b.addOn(x, py + 4.35, pz, 0.08, 1.2, 0.08, '#2c313c', STYLE.SMOOTH)
-    b.add(x + side * 0.42, py + 5.25, pz, 0.8, 0.42, 0.06, theme.gate, STYLE.GLOW, 0, 0, side * -0.12)
-    // The knots the bands are tied on with.
-    for (let k = 0; k < 6; k += 1) b.add(x - side * 0.22, py + 0.55 + k * 0.46, pz, 0.14, 0.2, 0.14, '#ffffff', STYLE.SMOOTH)
+    b.addOn(x, py - 0.3, pz, 1.0, 0.45, 1.0, '#2c313c', STYLE.SMOOTH)
+    b.addOn(x, py + 0.1, pz, 0.78, 3.6, 0.78, '#ff6a1a', STYLE.STRIPES)
+    b.addOn(x, py + 3.7, pz, 0.9, 0.28, 0.9, '#ff6a1a', STYLE.SMOOTH)
+    b.addOn(x, py + 3.98, pz, 0.42, 0.3, 0.42, theme.gate, STYLE.GLOW)
   }
-  b.addOn(0, py + 4.05, pz, HALF * 2 + 0.2, 0.32, 0.36, theme.gate, STYLE.GLOW)
-  // Bulbs along the beam.
-  for (let k = -3; k <= 3; k += 1) b.add(k * 1.0, py + 3.98, pz + 0.21, 0.2, 0.2, 0.08, '#fff6c4', STYLE.GLOW)
 }
 
 /**

@@ -19,7 +19,7 @@ export function RebirthNotice() {
   if (!maxed) return null
   return (
     // Centred by the wrapper, so the button's own press and pulse can move it freely.
-    <div className="absolute left-1/2 -translate-x-1/2" style={{ top: `calc(${u(22)} + ${clear}px)` }}>
+    <div className="absolute left-1/2 -translate-x-1/2" style={{ top: `calc(${u(22)} + ${clear}px + var(--notice-drop))` }}>
       <button
         type="button"
         onClick={() => togglePanel('rebirth')}

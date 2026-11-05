@@ -44,7 +44,7 @@ export function bulkFor(fat = 0) {
  * How much bigger all over a fat body is drawn, on top of its rounder shape (1 + this,
  * as fat as can be). Shared by your character and everyone else's.
  */
-export const FAT_SCALE = 0.24
+export const FAT_SCALE = 0.6
 
 /**
  * A body grows into its size on a spring, not an ease: a bite's worth of Fat lands and

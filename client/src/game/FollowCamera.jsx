@@ -180,10 +180,13 @@ export function FollowCamera() {
     }
     // Whoever's being followed: you in the plaza, or up the mountain in a SAFEZONE.
     const p = runtime.focus ?? runtime.player.position
-    _target.set(p.x, p.y + LOOK_HEIGHT, p.z)
+    // You grow as you fatten: the camera looks at your middle and stands back to fit you.
+    const grown = runtime.focus ? 1 : (runtime.player.drawnSize ?? 1)
+    _target.set(p.x, p.y + LOOK_HEIGHT * grown, p.z)
 
     // Spherical -> cartesian. yaw 0 puts the camera south of the player, looking north.
-    const { yaw, pitch, distance } = runtime.camera
+    const { yaw, pitch } = runtime.camera
+    const distance = runtime.camera.distance * (0.75 + 0.25 * grown)
     const horizontal = Math.cos(pitch) * distance
     _desired.set(
       _target.x + Math.sin(yaw) * horizontal,

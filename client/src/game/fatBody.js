@@ -41,33 +41,27 @@ const SHAPES = {
       top: 0.12,
       bottom: 0.08,
     },
-    // A blob: a huge round belly far wider than the body is tall - bulging out in front,
-    // sagging low over the thighs, a big round back - with shoulders that slope straight
-    // up into the head (no neck left).
+    // A big round belly, upright: a huge tummy sticking far out in front and hanging
+    // over the belt, wide hips, a round back, soft shoulders sloping into the neck.
     fat: {
       keys: [
-        [0, 2.55, 2.3, 0, 0.55],
-        [0.16, 2.85, 2.65, 0, 0.95],
-        [0.36, 2.92, 2.8, 0, 1.05],
-        [0.58, 2.75, 2.5, 0, 0.8],
-        [0.8, 2.4, 1.95, 0, 0.38],
-        [0.94, 1.95, 1.45, 0, 0.12],
-        [1, 1.3, 0.92, 0, 0],
+        [0, 1.75, 1.6, 0, 0.45],
+        [0.15, 2.15, 2.1, 0, 0.95],
+        [0.35, 2.3, 2.35, 0, 1.15],
+        [0.58, 2.15, 2.0, 0, 0.8],
+        [0.8, 1.9, 1.45, 0, 0.35],
+        [0.94, 1.72, 1.1, 0, 0.08],
+        [1, 1.3, 0.85, 0, 0],
       ],
-      top: 0.7,
-      bottom: 2.2,
-      // Two big rolls of belly - the bottom one hanging over the belt - and a soft line
-      // under the chest, round the front and sides only (the back stays smooth); a love
-      // handle spilling out of each side at the waist.
+      top: 0.35,
+      bottom: 1.0,
+      // The belly hanging over the belt (a deep crease under it), a soft roll above, round
+      // the front and sides only (the back stays smooth); a little love handle each side.
       creases: [
-        [0.12, 0.2, 0.055, 1],
-        [0.4, 0.13, 0.055, 1],
-        [0.68, 0.07, 0.05, 1],
+        [0.1, 0.17, 0.05, 1],
+        [0.44, 0.07, 0.055, 1],
       ],
-      handles: [
-        [0.22, 0.09, 0.12],
-        [0.46, 0.07, 0.05],
-      ],
+      handles: [[0.22, 0.09, 0.08]],
     },
   },
   arm: {
@@ -91,15 +85,15 @@ const SHAPES = {
     // Chubby hands and soft sausage arms, plumpest at the top.
     fat: {
       keys: [
-        [0, 0.55, 0.6, 0, 0.02],
-        [0.1, 0.5, 0.55, 0, 0],
-        [0.3, 0.74, 0.76, 0, 0],
-        [0.5, 0.78, 0.8, 0, 0],
-        [0.72, 0.9, 0.92, 0.02, 0],
-        [0.9, 0.94, 0.94, 0.04, 0],
-        [1, 0.76, 0.76, 0.04, 0],
+        [0, 0.5, 0.55, 0, 0.02],
+        [0.1, 0.46, 0.5, 0, 0],
+        [0.3, 0.66, 0.68, 0, 0],
+        [0.5, 0.7, 0.72, 0, 0],
+        [0.72, 0.8, 0.82, 0.02, 0],
+        [0.9, 0.84, 0.84, 0.04, 0],
+        [1, 0.66, 0.66, 0.04, 0],
       ],
-      top: 0.28,
+      top: 0.3,
       bottom: 0.26,
       // A baby-fat wrist and elbow.
       creases: [
@@ -128,12 +122,12 @@ const SHAPES = {
     // Chunky calves and big round thighs.
     fat: {
       keys: [
-        [0, 0.56, 0.66, 0, 0.12],
-        [0.08, 0.56, 0.6, 0, 0.02],
-        [0.3, 0.86, 0.9, 0, -0.02],
-        [0.5, 0.92, 0.96, 0, 0],
-        [0.76, 1.1, 1.14, 0.04, 0.05],
-        [1, 1.15, 1.15, 0, 0],
+        [0, 0.55, 0.65, 0, 0.12],
+        [0.08, 0.55, 0.6, 0, 0.02],
+        [0.3, 0.8, 0.84, 0, -0.02],
+        [0.5, 0.86, 0.9, 0, 0],
+        [0.76, 1.0, 1.04, 0.03, 0.05],
+        [1, 1.02, 1.02, 0, 0],
       ],
       top: 0.15,
       bottom: 0,
@@ -161,7 +155,7 @@ export const FAT_SLOTS = Object.keys(PARTS)
  * so the limbs stay at the sides of the body however round it is, and how tall it
  * stands: [skinny, fat], blended like the morph.
  */
-export const BODY_OFFSETS = { shoulder: [-0.84, 1.15], hip: [-0.32, 0.85], tall: [0.95, 0.98] }
+export const BODY_OFFSETS = { shoulder: [-0.84, 0.45], hip: [-0.32, 0.5], tall: [0.95, 1.06] }
 
 /**
  * How much of each box face's texture the rounded part shows, from the face's middle:

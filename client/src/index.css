@@ -10,6 +10,25 @@
    * and floored so touch targets stay usable on phones.
    */
   --px: clamp(0.42px, min(100vw / 1920, 100vh / 1080), 1.4px);
+  /* Where the level bar and the Coins/Fat counters sit above the bottom edge. */
+  --levelbar-bottom: calc(var(--px) * 18);
+  --stats-bottom: calc(var(--px) * 120);
+  /* How much further down the top-centre call-outs sit (below the top-right buttons). */
+  --notice-drop: 0px;
+}
+
+/*
+ * A phone held upright: the HUD laid out for a narrow 1180 x 1920 screen instead (smaller,
+ * so nothing runs off the sides), with the level bar and the Coins/Fat counters lifted
+ * above the EAT button and the joystick.
+ */
+@media (orientation: portrait) {
+  :root {
+    --px: clamp(0.25px, min(100vw / 1180, 100vh / 1920), 1.4px);
+    --levelbar-bottom: calc(var(--px) * 300);
+    --stats-bottom: calc(var(--px) * 520);
+    --notice-drop: calc(var(--px) * 120);
+  }
 }
 
 html,
@@ -53,6 +72,10 @@ canvas {
 }
 .pp-text-fill {
   position: relative;
+}
+/* Outlined text that may wrap onto more lines (hints, names) rather than run off the screen. */
+.pp-text.pp-wrap {
+  white-space: normal;
 }
 
 /* Single-element outline for small labels where a gradient isn't needed. */

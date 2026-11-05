@@ -1,4 +1,5 @@
 import { TUTORIAL } from '@shared/balance'
+import { isMaxLevel } from '@shared/logic'
 import { formatNumber } from '@shared/format'
 
 import { useClearTop } from '../../bloxity/reserved'
@@ -40,13 +41,19 @@ function useHint() {
 export function TopCenter() {
   const hint = useHint()
   const hidden = useGame((s) => s.pushing || s.panel !== null)
+  const maxed = useGame((s) => isMaxLevel(s.profile))
   const clear = useClearTop(0.25, 0.75)
   if (!hint) return null
+  // Below the MAX LEVEL call (RebirthNotice) when it's up, never on top of it.
+  const below = maxed ? `calc(${clear}px + ${u(140)} + var(--notice-drop))` : `calc(${clear + 8}px + var(--notice-drop))`
 
   return (
-    <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center" style={{ top: `max(${u(196)}, ${clear + 8}px)` }}>
-      <div key={hint.key} className="pp-pet" style={{ fontSize: u(60), animationPlayState: hidden ? 'paused' : 'running' }}>
-        <StrokeText stroke={u(12)} gradient={BANNER_GRADIENT}>
+    <div
+      className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center text-center"
+      style={{ top: `max(${u(196)}, ${below})`, width: 'max-content', maxWidth: touch ? '56vw' : '78vw' }}
+    >
+      <div key={hint.key} className="pp-pet" style={{ fontSize: u(touch ? 40 : 56), lineHeight: 1.12, animationPlayState: hidden ? 'paused' : 'running' }}>
+        <StrokeText stroke={u(12)} gradient={BANNER_GRADIENT} className="pp-wrap">
           {hint.text}
         </StrokeText>
       </div>
